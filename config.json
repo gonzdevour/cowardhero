@@ -1,7 +1,7 @@
 ﻿{
 	"id": "com.playone.cowardhero2",
 	"version": "1.0.1",
-	"name": "CHandroid",
+	"name": "Coward Hero",
 	"description": "CH",
 	"author": "Touart Game Studio",
 	"email": "playoneapps@gmail.com",
@@ -21,9 +21,7 @@
 		"density": "xhdpi"
 	}],
 	"plugins": [
-		{ "id": "cc.fovea.cordova.purchase", "version": null },
 		{ "id": "cocoon-plugin-inapps-android-googleplay", "version": null },
-		{ "id": "com.mcm.plugins.androidinappbilling", "version": null },
 		{ "id": "cordova-custom-config", "version": null },
 		{ "id": "cordova-plugin-camera", "version": null },
 		{ "id": "cordova-plugin-inappbrowser", "version": null },

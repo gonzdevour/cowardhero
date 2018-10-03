@@ -1,5 +1,3 @@
-<intelxdk:plugin intelxdk:name="cc.fovea.cordova.purchase" intelxdk:value="cc.fovea.cordova.purchase" />
 <intelxdk:plugin intelxdk:name="cocoon-plugin-inapps-android-googleplay" intelxdk:value="cocoon-plugin-inapps-android-googleplay" />
-<intelxdk:plugin intelxdk:name="com.mcm.plugins.androidinappbilling" intelxdk:value="https://github.com/maxmoore14/AndroidInAppBilling.git" />
 <intelxdk:plugin intelxdk:name="cordova-plugin-inappbrowser" intelxdk:value="cordova-plugin-inappbrowser" />
 <intelxdk:plugin intelxdk:name="https://github.com/cranberrygame/cordova-plugin-game --variable APP_ID='YOUR_GOOGLE_PLAY_GAME_APP_ID'" intelxdk:value="https://github.com/cranberrygame/cordova-plugin-game --variable APP_ID='YOUR_GOOGLE_PLAY_GAME_APP_ID'" />
