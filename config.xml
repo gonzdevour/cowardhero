@@ -89,8 +89,9 @@
 	<plugin name="cordova-plugin-media" />
 	<plugin name="cordova-plugin-statusbar" />
 	<plugin name="cordova-plugin-whitelist" />
-	<plugin name="https://github.com/cranberrygame/cordova-plugin-game --variable APP_ID='399858431474'" />
-
+	<plugin spec="https://github.com/cranberrygame/cordova-plugin-game.git" source="git">
+        <variable name="APP_ID" value="399858431474" />
+	</plugin>
 
 	<engine name="ios" />
 	<engine name="android" />
