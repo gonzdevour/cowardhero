@@ -82,7 +82,6 @@
 	<preference name="android-minSdkVersion" value="21" />
 	<access origin="*" />
 
-	<plugin name="cocoon-plugin-inapps-android-googleplay" />
 	<plugin name="cordova-custom-config" />
 	<plugin name="cordova-plugin-camera" />
 	<plugin name="cordova-plugin-inappbrowser" />
