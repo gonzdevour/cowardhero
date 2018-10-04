@@ -1,5 +1,5 @@
 ﻿<?xml version="1.0" encoding="UTF-8" ?>
-<widget id="com.playone.cowardhero2" version="1.0.2" xmlns="http://www.w3.org/ns/widgets" xmlns:cdv="http://cordova.apache.org/ns/1.0">
+<widget id="com.playone.cowardhero2" version="1.0.3" xmlns="http://www.w3.org/ns/widgets" xmlns:cdv="http://cordova.apache.org/ns/1.0">
 	<name>Coward Hero</name>
 	<description>Coward Hero</description>
 	<author href="https://www.facebook.com/touartgame" email="playoneapps@gmail.com">Touart Game Studio</author>
@@ -92,6 +92,7 @@
 	<plugin spec="https://github.com/cranberrygame/cordova-plugin-game.git" source="git">
         <variable name="APP_ID" value="399858431474" />
 	</plugin>
+	<plugin name="https://github.com/cranberrygame/cordova-plugin-payment-iap" />
 
 	<engine name="ios" />
 	<engine name="android" />

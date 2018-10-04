@@ -32065,6 +32065,723 @@ cr.plugins_.cranberrygame_CordovaGame = function(runtime)
 }());
 ;
 ;
+/*
+cr.plugins_.cranberrygame_CordovaIAP = function(runtime)
+{
+	this.runtime = runtime;
+	Type
+		onCreate
+	Instance
+		onCreate
+		draw
+		drawGL
+	cnds
+	acts
+	exps
+};
+*/
+cr.plugins_.cranberrygame_CordovaIAP = function(runtime)
+{
+	this.runtime = runtime;
+};
+(function ()
+{
+	/* interface:
+	function Store()
+	{
+		this.onpurchasesuccess = null;
+		this.onpurchasefail = null;
+		this.onconsumesuccess = null;
+		this.onconsumefail = null;
+		this.onstorelistingsuccess = null;
+		this.onstorelistingfail = null;
+		this.onrestorepurchasessuccess = null;
+		this.onrestorepurchasesfail = null;
+		this.product_id_list = [];
+	};
+	Store.prototype.isAvailable = function () {};
+	Store.prototype.supportsConsumables = function () {};
+	Store.prototype.addProductIds = function (ids) {};
+	Store.prototype.isTrial = function () {};
+	Store.prototype.isLicensed = function () {};
+	Store.prototype.hasProduct = function (product_) {};
+	Store.prototype.purchaseApp = function () {};
+	Store.prototype.purchaseProduct = function (product_) {};
+	Store.prototype.consumeProduct = function (product_) {}; //cranberrygame
+	Store.prototype.restorePurchases = function (tag) {}; //cranberrygame
+	Store.prototype.requestStoreListing = function () {};
+	Store.prototype.getAppName = function () {};
+	Store.prototype.getAppFormattedPrice = function () {};
+	Store.prototype.getProductName = function (product_) {};
+	Store.prototype.getProductFormattedPrice = function (product_) {};
+	*/
+	function AndroidStore(androidApplicationLicenseKey)
+	{
+		this.onpurchasesuccess = null;
+		this.onpurchasefail = null;
+		this.onconsumesuccess = null;
+		this.onconsumefail = null;
+		this.onstorelistingsuccess = null;
+		this.onstorelistingfail = null;
+		this.onrestorepurchasessuccess = null;
+		this.onrestorepurchasesfail = null;
+		this.product_id_list = [];
+		this.existing_purchases = [];
+		this.product_info = {};		// map product id to info
+		this.androidApplicationLicenseKey = androidApplicationLicenseKey;//cranberrygame
+		this.initialized = false; //cranberrygame
+		window['iap']['setUp'](this.androidApplicationLicenseKey);
+	};
+	AndroidStore.prototype.isAvailable = function ()
+	{
+		return true;
+	};
+	AndroidStore.prototype.supportsConsumables = function ()
+	{
+		return false;
+	};
+	AndroidStore.prototype.addProductIds = function (idstring)
+	{
+/*
+		if (idstring.indexOf(",") === -1)
+			this.product_id_list.push(idstring);
+		else
+			this.product_id_list.push.apply(this.product_id_list, idstring.split(","));
+*/
+		if (idstring.indexOf(",") === -1) {
+			if (this.product_id_list.indexOf(idstring) == -1)
+				this.product_id_list.push(idstring);
+		}
+		else {
+			var arr = idstring.split(",");
+			for (var i = 0 ; i < arr.length ; i++) {
+				if (this.product_id_list.indexOf(arr[i]) == -1)
+					this.product_id_list.push(arr[i]);
+			}
+		}
+	};
+	AndroidStore.prototype.isTrial = function ()
+	{
+		return !this.isLicensed();
+	};
+	AndroidStore.prototype.isLicensed = function ()
+	{
+		return this.hasProduct("app");
+	};
+	AndroidStore.prototype.hasProduct = function (product_)
+	{
+		return this.existing_purchases.indexOf(product_) !== -1;
+	};
+	AndroidStore.prototype.purchaseApp = function ()
+	{
+		this.purchaseProduct("app");
+	};
+	AndroidStore.prototype.purchaseProduct = function (product_)
+	{
+		if (!this.isAvailable())
+			return;
+		var self = this;
+		window['iap']['purchaseProduct'](product_, function (result)
+		{
+			if (self.existing_purchases.indexOf(product_) === -1)
+				self.existing_purchases.push(product_);
+			if (self.onpurchasesuccess)
+				self.onpurchasesuccess(product_);
+		},
+		function (error)
+		{
+			if (self.onpurchasefail)
+				self.onpurchasefail(product_, error);
+		});
+	};
+	AndroidStore.prototype.consumeProduct = function (product_)
+	{
+		if (!this.isAvailable())
+			return;
+		var self = this;
+		var product_id_list = [];
+		if (product_.indexOf(",") === -1)
+			product_id_list.push(product_);
+		else
+			product_id_list.push.apply(product_id_list, product_.split(","));
+		window['iap']['consumeProduct'](product_id_list, function (result)
+		{
+			for (var i = 0 ; i < product_id_list.length ; i++) {
+				if (self.existing_purchases.indexOf(product_id_list[i]) !== -1)
+					self.existing_purchases.splice(self.existing_purchases.indexOf(product_id_list[i]),1);
+			}
+			if (self.onconsumesuccess)
+				self.onconsumesuccess(product_);
+		},
+		function (error)
+		{
+			if (self.onconsumefail)
+				self.onconsumefail(product_, error);
+		});
+	};
+	AndroidStore.prototype.restorePurchases = function (tag)
+	{
+		if (!this.isAvailable())
+			return;
+		var self = this;
+		window['iap']["restorePurchases"](function (result)
+		{
+			for (var i = 0 ; i < result.length; ++i)
+			{
+				var p = result[i];
+				if (self.existing_purchases.indexOf(p['productId']) === -1)
+					self.existing_purchases.push(p['productId']);
+			}
+			if (self.onrestorepurchasessuccess)
+				self.onrestorepurchasessuccess(tag);
+		},
+		function (error)
+		{
+			if (self.onrestorepurchasesfail)
+				self.onrestorepurchasesfail(tag);
+		});
+	};
+	AndroidStore.prototype.requestStoreListing = function ()
+	{
+		var self = this;
+		window['iap']["requestStoreListing"](self.product_id_list, function (result)
+		{
+/*
+[
+    {
+        "productId": "sword001",
+        "title": "Sword of Truths",
+        "price": "Formatted price of the item, including its currency sign.",
+        "description": "Very pointy sword. Sword knows if you are lying, so don't lie."
+    },
+    {
+        "productId": "shield001",
+        "title": "Shield of Peanuts",
+        "price": "Formatted price of the item, including its currency sign.",
+        "description": "A shield made entirely of peanuts."
+    }
+]
+*/
+			for (var i = 0 ; i < result.length; ++i)
+			{
+				var p = result[i];
+				self.product_info[p["productId"]] = { title: p["title"], price: p["price"] };
+			}
+			if (self.onstorelistingsuccess)
+				self.onstorelistingsuccess();
+		}, function (error)
+		{
+			if (self.onstorelistingfail)
+				self.onstorelistingfail();
+		});
+	};
+	AndroidStore.prototype.getAppName = function ()
+	{
+		return this.getProductName("app");
+	};
+	AndroidStore.prototype.getAppFormattedPrice = function ()
+	{
+		return this.getProductFormattedPrice("app");
+	};
+	AndroidStore.prototype.getProductName = function (product_)
+	{
+		if (this.product_info.hasOwnProperty(product_))
+			return this.product_info[product_].title;
+		else
+			return "";
+	};
+	AndroidStore.prototype.getProductFormattedPrice = function (product_)
+	{
+		if (this.product_info.hasOwnProperty(product_))
+			return this.product_info[product_].price.toString();
+		else
+			return "";
+	};
+	function WP8Store()
+	{
+		this.onpurchasesuccess = null;
+		this.onpurchasefail = null;
+		this.onconsumesuccess = null;
+		this.onconsumefail = null;
+		this.onstorelistingsuccess = null;
+		this.onstorelistingfail = null;
+		this.onrestorepurchasessuccess = null;
+		this.onrestorepurchasesfail = null;
+		this.product_id_list = [];
+		this.existing_purchases = [];
+		this.product_info = {};		// map product id to info
+		InAppPurchaseManager["init"](function (result)
+		{
+		}, function (error)
+		{
+		} , {showLog:true});
+	};
+	WP8Store.prototype.isAvailable = function ()
+	{
+		return true;
+	};
+	WP8Store.prototype.supportsConsumables = function ()
+	{
+		return false;
+	};
+	WP8Store.prototype.addProductIds = function (idstring)
+	{
+/*
+		if (idstring.indexOf(",") === -1)
+			this.product_id_list.push(idstring);
+		else
+			this.product_id_list.push.apply(this.product_id_list, idstring.split(","));
+*/
+		if (idstring.indexOf(",") === -1) {
+			if (this.product_id_list.indexOf(idstring) == -1)
+				this.product_id_list.push(idstring);
+		}
+		else {
+			var arr = idstring.split(",");
+			for (var i = 0 ; i < arr.length ; i++) {
+				if (this.product_id_list.indexOf(arr[i]) == -1)
+					this.product_id_list.push(arr[i]);
+			}
+		}
+	};
+	WP8Store.prototype.isTrial = function ()
+	{
+		return !this.isLicensed();
+	};
+	WP8Store.prototype.isLicensed = function ()
+	{
+		return this.hasProduct("app");
+	};
+	WP8Store.prototype.hasProduct = function (product_)
+	{
+		return this.existing_purchases.indexOf(product_) !== -1;
+	};
+	WP8Store.prototype.purchaseApp = function ()
+	{
+		this.purchaseProduct("app");
+	};
+	WP8Store.prototype.purchaseProduct = function (product_)
+	{
+		if (!this.isAvailable())
+			return;
+		var self = this;
+		InAppPurchaseManager["buy"](function (result)
+		{
+			if (self.existing_purchases.indexOf(product_) === -1)
+				self.existing_purchases.push(product_);
+			if (self.onpurchasesuccess)
+				self.onpurchasesuccess(product_);
+		}, function (error)
+		{
+			if (self.onpurchasefail)
+				self.onpurchasefail(product_, error);
+		} , product_);
+	};
+	WP8Store.prototype.consumeProduct = function (product_)
+	{
+	}
+	WP8Store.prototype.restorePurchases = function (tag)
+	{
+		if (!this.isAvailable())
+			return;
+		InAppPurchaseManager["getPurchases"](function (result)
+		{
+			var i, len, p;
+			for (i = 0, len = result.length; i < len; ++i)
+			{
+				p = result[i]["productId"];
+				if (self.existing_purchases.indexOf(p) === -1)
+					self.existing_purchases.push(p);
+			}
+			if (self.onrestorepurchasessuccess)
+				self.onrestorepurchasessuccess(tag);
+		}, function (error)
+		{
+			if (self.onrestorepurchasesfail)
+				self.onrestorepurchasesfail(tag);
+		});
+	};
+	WP8Store.prototype.requestStoreListing = function ()
+	{
+		var self = this;
+		InAppPurchaseManager["getProductDetails"](function (result)
+		{
+			var i, len, p;
+			for (i = 0, len = result.length; i < len; ++i)
+			{
+				p = result[i];
+				self.product_info[p["productId"]] = { title: p["title"], price: p["price"] };
+			}
+			if (self.onstorelistingsuccess)
+				self.onstorelistingsuccess();
+		}, function (error)
+		{
+			if (self.onstorelistingfail)
+				self.onstorelistingfail();
+		}, this.product_id_list);
+	};
+	WP8Store.prototype.getAppName = function ()
+	{
+		return this.getProductName("app");
+	};
+	WP8Store.prototype.getAppFormattedPrice = function ()
+	{
+		return this.getProductFormattedPrice("app");
+	};
+	WP8Store.prototype.getProductName = function (product_)
+	{
+		if (this.product_info.hasOwnProperty(product_))
+			return this.product_info[product_].title;
+		else
+			return "";
+	};
+	WP8Store.prototype.getProductFormattedPrice = function (product_)
+	{
+		if (this.product_info.hasOwnProperty(product_))
+			return this.product_info[product_].price.toString();
+		else
+			return "";
+	};
+	var pluginProto = cr.plugins_.cranberrygame_CordovaIAP.prototype;
+	pluginProto.Type = function(plugin)
+	{
+		this.plugin = plugin;
+		this.runtime = plugin.runtime;
+	};
+	var typeProto = pluginProto.Type.prototype;
+/*
+	var fbAppID = "";
+	var fbAppSecret = "";
+*/
+	var curTag = "";
+	typeProto.onCreate = function()
+	{
+/*
+		var newScriptTag=document.createElement('script');
+		newScriptTag.setAttribute("type","text/javascript");
+		newScriptTag.setAttribute("src", "mylib.js");
+		document.getElementsByTagName("head")[0].appendChild(newScriptTag);
+		var scripts=document.getElementsByTagName("script");
+		var scriptExist=false;
+		for(var i=0;i<scripts.length;i++){
+			if(scripts[i].src.indexOf("cordova.js")!=-1||scripts[i].src.indexOf("phonegap.js")!=-1){
+				scriptExist=true;
+				break;
+			}
+		}
+		if(!scriptExist){
+			var newScriptTag=document.createElement("script");
+			newScriptTag.setAttribute("type","text/javascript");
+			newScriptTag.setAttribute("src", "cordova.js");
+			document.getElementsByTagName("head")[0].appendChild(newScriptTag);
+		}
+*/
+		if(this.runtime.isBlackberry10 || this.runtime.isWindows8App || this.runtime.isWindowsPhone8 || this.runtime.isWindowsPhone81){
+			var scripts=document.getElementsByTagName("script");
+			var scriptExist=false;
+			for(var i=0;i<scripts.length;i++){
+				if(scripts[i].src.indexOf("cordova.js")!=-1||scripts[i].src.indexOf("phonegap.js")!=-1){
+					scriptExist=true;
+					break;
+				}
+			}
+			if(!scriptExist){
+				var newScriptTag=document.createElement("script");
+				newScriptTag.setAttribute("type","text/javascript");
+				newScriptTag.setAttribute("src", "cordova.js");
+				document.getElementsByTagName("head")[0].appendChild(newScriptTag);
+			}
+		}
+	};
+	pluginProto.Instance = function(type)
+	{
+		this.type = type;
+		this.runtime = type.runtime;
+	};
+	var instanceProto = pluginProto.Instance.prototype;
+	instanceProto.onCreate = function()
+	{
+/*
+		var self=this;
+		window.addEventListener("resize", function () {//cranberrygame
+			self.runtime.trigger(cr.plugins_.cranberrygame_CordovaIAP.prototype.cnds.TriggerCondition, self);
+		});
+*/
+		if (!(this.runtime.isAndroid || this.runtime.isiOS || this.runtime.isWindowsPhone8 || this.runtime.isWindowsPhone81))
+			return;
+		if (typeof window['iap'] == 'undefined')
+            return;
+		this.androidApplicationLicenseKey = this.properties[0];
+		if (this.runtime.isAndroid && this.androidApplicationLicenseKey == '')
+			return;
+		this.store = null;
+		this.productId = "";
+		this.errorMessage = "";
+		if (this.runtime.isAndroid || this.runtime.isiOS)
+		{
+			this.store = new AndroidStore(this.androidApplicationLicenseKey);
+		}
+		else if (this.runtime.isiOS)
+		{
+			this.store = new AndroidStore(this.androidApplicationLicenseKey);
+		}
+		else if (this.runtime.isWindowsPhone8 || this.runtime.isWindowsPhone81)
+		{
+			this.store = new AndroidStore(this.androidApplicationLicenseKey);
+		}
+		var self = this;
+		if (this.store)
+		{
+			this.store.onpurchasesuccess = function (product_)
+			{
+				self.productId = product_;
+				self.errorMessage = "";
+				self.runtime.trigger(cr.plugins_.cranberrygame_CordovaIAP.prototype.cnds.OnPurchaseProductSucceeded, self);
+				self.runtime.trigger(cr.plugins_.cranberrygame_CordovaIAP.prototype.cnds.OnAnyPurchaseProductSucceeded, self);
+			};
+			this.store.onpurchasefail = function (product_, error_)
+			{
+				self.productId = product_;
+				self.errorMessage = error_;
+				self.runtime.trigger(cr.plugins_.cranberrygame_CordovaIAP.prototype.cnds.OnPurchaseProductFailed, self);
+				self.runtime.trigger(cr.plugins_.cranberrygame_CordovaIAP.prototype.cnds.OnAnyPurchaseProductFailed, self);
+			};
+			this.store.onconsumesuccess = function (product_)
+			{
+				self.productId = product_;
+				self.errorMessage = "";
+				self.runtime.trigger(cr.plugins_.cranberrygame_CordovaIAP.prototype.cnds.OnConsumeProductSucceeded, self);
+			};
+			this.store.onconsumefail = function (product_, error_)
+			{
+				self.productId = product_;
+				self.errorMessage = error_;
+				self.runtime.trigger(cr.plugins_.cranberrygame_CordovaIAP.prototype.cnds.OnConsumeProductFailed, self);
+			};
+			this.store.onstorelistingsuccess = function ()
+			{
+				self.runtime.trigger(cr.plugins_.cranberrygame_CordovaIAP.prototype.cnds.OnRequestStoreListingSucceeded, self);
+			};
+			this.store.onstorelistingfail = function ()
+			{
+				self.runtime.trigger(cr.plugins_.cranberrygame_CordovaIAP.prototype.cnds.OnRequestStoreListingFailed, self);
+			};
+			this.store.onrestorepurchasessuccess = function (tag)
+			{
+				curTag = tag;
+				self.runtime.trigger(cr.plugins_.cranberrygame_CordovaIAP.prototype.cnds.OnRestorePurchasesSucceeded, self);
+			};
+			this.store.onrestorepurchasesfail = function (tag)
+			{
+				curTag = tag;
+				self.runtime.trigger(cr.plugins_.cranberrygame_CordovaIAP.prototype.cnds.OnRestorePurchasesFailed, self);
+			};
+		}
+	};
+	instanceProto.draw = function(ctx)
+	{
+	};
+	instanceProto.drawGL = function (glw)
+	{
+	};
+/*
+	instanceProto.at = function (x)
+	{
+		return this.arr[x];
+	};
+	instanceProto.set = function (x, val)
+	{
+		this.arr[x] = val;
+	};
+*/
+	function Cnds() {};
+/*
+	Cnds.prototype.MyCondition = function (myparam)
+	{
+		return myparam >= 0;
+	};
+	Cnds.prototype.TriggerCondition = function ()
+	{
+		return true;
+	};
+*/
+	Cnds.prototype.OnPurchaseProductSucceeded = function (product_)
+	{
+		return product_ === this.productId;
+	};
+	Cnds.prototype.OnAnyPurchaseProductSucceeded = function ()
+	{
+		return true;
+	};
+	Cnds.prototype.OnPurchaseProductFailed = function (product_)
+	{
+		return product_ === this.productId;
+	};
+	Cnds.prototype.OnAnyPurchaseProductFailed = function ()
+	{
+		return true;
+	};
+	Cnds.prototype.OnConsumeProductSucceeded = function (product_)
+	{
+		return product_ === this.productId;
+	};
+	Cnds.prototype.OnConsumeProductFailed = function (product_)
+	{
+		return product_ === this.productId;
+	};
+	Cnds.prototype.OnRequestStoreListingSucceeded = function ()
+	{
+		return true;
+	};
+	Cnds.prototype.OnRequestStoreListingFailed = function ()
+	{
+		return true;
+	};
+	Cnds.prototype.HasProduct = function (product_)
+	{
+		return this.store && this.store.hasProduct(product_);
+	};
+	Cnds.prototype.IsAvailable = function ()
+	{
+		return this.store && this.store.isAvailable();
+	};
+	Cnds.prototype.IsAppPurchased = function ()
+	{
+		return this.store && this.store.isLicensed();
+	};
+	Cnds.prototype.OnRestorePurchasesSucceeded = function (tag)
+	{
+		return cr.equals_nocase(tag, curTag);
+	};
+	Cnds.prototype.OnRestorePurchasesFailed = function (tag)
+	{
+		return cr.equals_nocase(tag, curTag);
+	};
+	pluginProto.cnds = new Cnds();
+	function Acts() {};
+/*
+	Acts.prototype.MyAction = function (myparam)
+	{
+		alert(myparam);
+	};
+	Acts.prototype.TriggerAction = function ()
+	{
+		var self=this;
+		self.runtime.trigger(cr.plugins_.cranberrygame_CordovaIAP.prototype.cnds.TriggerCondition, self);
+	};
+*/
+	Acts.prototype.AddProductID = function (product_)
+	{
+		if (!(this.runtime.isAndroid || this.runtime.isiOS || this.runtime.isWindowsPhone8 || this.runtime.isWindowsPhone81))
+			return;
+		if (typeof window['iap'] == 'undefined')
+            return;
+		if (this.runtime.isAndroid && this.androidApplicationLicenseKey == '')
+			return;
+		if (!this.store)
+			return;
+		this.store.addProductIds(product_);
+	};
+	Acts.prototype.PurchaseProduct = function (product_)
+	{
+		if (!(this.runtime.isAndroid || this.runtime.isiOS || this.runtime.isWindowsPhone8 || this.runtime.isWindowsPhone81))
+			return;
+		if (typeof window['iap'] == 'undefined')
+            return;
+		if (this.runtime.isAndroid && this.androidApplicationLicenseKey == '')
+			return;
+		if (!this.store)
+			return;
+		this.store.purchaseProduct(product_);
+	};
+	Acts.prototype.ConsumeProduct = function (product_) //cranberrygame
+	{
+		if (!(this.runtime.isAndroid || this.runtime.isiOS || this.runtime.isWindowsPhone8 || this.runtime.isWindowsPhone81))
+			return;
+		if (typeof window['iap'] == 'undefined')
+            return;
+		if (this.runtime.isAndroid && this.androidApplicationLicenseKey == '')
+			return;
+		if (!this.store)
+			return;
+		this.store.consumeProduct(product_);
+	};
+	Acts.prototype.PurchaseApp = function ()
+	{
+		if (!(this.runtime.isAndroid || this.runtime.isiOS || this.runtime.isWindowsPhone8 || this.runtime.isWindowsPhone81))
+			return;
+		if (typeof window['iap'] == 'undefined')
+            return;
+		if (this.runtime.isAndroid && this.androidApplicationLicenseKey == '')
+			return;
+		if (!this.store)
+			return;
+		this.store.purchaseApp();
+	};
+	Acts.prototype.RestorePurchases = function (tag)
+	{
+		if (!(this.runtime.isAndroid || this.runtime.isiOS || this.runtime.isWindowsPhone8 || this.runtime.isWindowsPhone81))
+			return;
+		if (typeof window['iap'] == 'undefined')
+            return;
+		if (this.runtime.isAndroid && this.androidApplicationLicenseKey == '')
+			return;
+		if (!this.store)
+			return;
+		this.store.restorePurchases(tag);
+	};
+	Acts.prototype.RequestStoreListing = function ()
+	{
+		if (!(this.runtime.isAndroid || this.runtime.isiOS || this.runtime.isWindowsPhone8 || this.runtime.isWindowsPhone81))
+			return;
+		if (typeof window['iap'] == 'undefined')
+            return;
+		if (this.runtime.isAndroid && this.androidApplicationLicenseKey == '')
+			return;
+		if (!this.store)
+			return;
+		this.store.requestStoreListing();
+	};
+	pluginProto.acts = new Acts();
+	function Exps() {};
+/*
+	Exps.prototype.MyExpression = function (ret)	// 'ret' must always be the first parameter - always return the expression's result through it!
+	{
+		ret.set_int(1337);				// return our value
+	};
+	Exps.prototype.Text = function (ret, param) //cranberrygame
+	{
+		ret.set_string("Hello");		// for ef_return_string
+	};
+*/
+	Exps.prototype.ProductName = function (ret, product_)
+	{
+		ret.set_string(this.store ? this.store.getProductName(product_) : "");
+	};
+	Exps.prototype.ProductPrice = function (ret, product_)
+	{
+		ret.set_string(this.store ? this.store.getProductFormattedPrice(product_) : "");
+	};
+	Exps.prototype.AppName = function (ret)
+	{
+		ret.set_string(this.store ? this.store.getAppName() : "");
+	};
+	Exps.prototype.AppPrice = function (ret)
+	{
+		ret.set_string(this.store ? this.store.getAppFormattedPrice() : "");
+	};
+	Exps.prototype.ProductID = function (ret)
+	{
+		ret.set_string(this.productId);
+	};
+	Exps.prototype.ErrorMessage = function (ret)
+	{
+		ret.set_string(this.errorMessage);
+	};
+	pluginProto.exps = new Exps();
+}());
+;
+;
 cr.plugins_.rex_TouchWrap = function(runtime)
 {
 	this.runtime = runtime;
@@ -39452,6 +40169,7 @@ cr.getObjectRefTable = function () { return [
 	cr.plugins_.cranberrygame_CordovaGame,
 	cr.plugins_.TR_UltimateIAP,
 	cr.plugins_.WebStorage,
+	cr.plugins_.cranberrygame_CordovaIAP,
 	cr.plugins_.Spritefont2,
 	cr.plugins_.TextBox,
 	cr.plugins_.Rex_WorkSheet,
@@ -39667,14 +40385,14 @@ cr.getObjectRefTable = function () { return [
 	cr.plugins_.Spritefont2.prototype.exps.X,
 	cr.plugins_.Spritefont2.prototype.exps.Y,
 	cr.plugins_.Rex_Nickname.prototype.acts.CreateInst,
-	cr.plugins_.TR_UltimateIAP.prototype.acts.RegisterProduct,
-	cr.plugins_.TR_UltimateIAP.prototype.acts.Initialize,
+	cr.plugins_.cranberrygame_CordovaIAP.prototype.acts.AddProductID,
+	cr.plugins_.cranberrygame_CordovaIAP.prototype.acts.RequestStoreListing,
 	cr.plugins_.Text.prototype.acts.SetPosToObject,
 	cr.plugins_.TextBox.prototype.acts.SetText,
 	cr.plugins_.TextBox.prototype.exps.Text,
 	cr.system_object.prototype.exps.newline,
-	cr.plugins_.TR_UltimateIAP.prototype.cnds.OnInitSucceeded,
-	cr.plugins_.TR_UltimateIAP.prototype.cnds.OnInitFailed,
+	cr.plugins_.cranberrygame_CordovaIAP.prototype.cnds.OnRequestStoreListingSucceeded,
+	cr.plugins_.cranberrygame_CordovaIAP.prototype.cnds.OnRequestStoreListingFailed,
 	cr.plugins_.TR_UltimateIAP.prototype.exps.ErrorMsg,
 	cr.plugins_.TR_UltimateIAP.prototype.acts.PurchaseProduct,
 	cr.plugins_.Text.prototype.acts.SetText,

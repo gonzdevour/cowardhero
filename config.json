@@ -1,6 +1,6 @@
 ﻿{
 	"id": "com.playone.cowardhero2",
-	"version": "1.0.2",
+	"version": "1.0.3",
 	"name": "Coward Hero",
 	"description": "Coward Hero",
 	"author": "Touart Game Studio",
@@ -28,7 +28,8 @@
 		{ "id": "cordova-plugin-media", "version": null },
 		{ "id": "cordova-plugin-statusbar", "version": null },
 		{ "id": "cordova-plugin-whitelist", "version": null },
-		{ "id": "https://github.com/cranberrygame/cordova-plugin-game --variable APP_ID='YOUR_GOOGLE_PLAY_GAME_APP_ID'", "version": null }
+		{ "id": "https://github.com/cranberrygame/cordova-plugin-game --variable APP_ID='YOUR_GOOGLE_PLAY_GAME_APP_ID'", "version": null },
+		{ "id": "https://github.com/cranberrygame/cordova-plugin-payment-iap", "version": null }
 	],
 	"android": {
 		"min": 21,
