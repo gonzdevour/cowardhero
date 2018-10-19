@@ -7,6 +7,8 @@
 	<!-- Splashscreen Settings -->
 	<!-- iOS only -->
 	<platform name="ios">
+		<widget CFBundleVersion="96">
+		</widget>
 		<!-- iOS 8.0+ -->
 		<icon src="www/icons/1024x1024.png" width="1024" height="1024" />
 		<!-- iPhone 6 Plus  -->
