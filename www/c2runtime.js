@@ -20397,6 +20397,205 @@ cr.plugins_.FileSaver = function(runtime)
 }());
 ;
 ;
+cr.plugins_.Function = function(runtime)
+{
+	this.runtime = runtime;
+};
+(function ()
+{
+	var pluginProto = cr.plugins_.Function.prototype;
+	pluginProto.Type = function(plugin)
+	{
+		this.plugin = plugin;
+		this.runtime = plugin.runtime;
+	};
+	var typeProto = pluginProto.Type.prototype;
+	typeProto.onCreate = function()
+	{
+	};
+	pluginProto.Instance = function(type)
+	{
+		this.type = type;
+		this.runtime = type.runtime;
+	};
+	var instanceProto = pluginProto.Instance.prototype;
+	var funcStack = [];
+	var funcStackPtr = -1;
+	var isInPreview = false;	// set in onCreate
+	function FuncStackEntry()
+	{
+		this.name = "";
+		this.retVal = 0;
+		this.params = [];
+	};
+	function pushFuncStack()
+	{
+		funcStackPtr++;
+		if (funcStackPtr === funcStack.length)
+			funcStack.push(new FuncStackEntry());
+		return funcStack[funcStackPtr];
+	};
+	function getCurrentFuncStack()
+	{
+		if (funcStackPtr < 0)
+			return null;
+		return funcStack[funcStackPtr];
+	};
+	function getOneAboveFuncStack()
+	{
+		if (!funcStack.length)
+			return null;
+		var i = funcStackPtr + 1;
+		if (i >= funcStack.length)
+			i = funcStack.length - 1;
+		return funcStack[i];
+	};
+	function popFuncStack()
+	{
+;
+		funcStackPtr--;
+	};
+	instanceProto.onCreate = function()
+	{
+		isInPreview = (typeof cr_is_preview !== "undefined");
+		var self = this;
+		window["c2_callFunction"] = function (name_, params_)
+		{
+			var i, len, v;
+			var fs = pushFuncStack();
+			fs.name = name_.toLowerCase();
+			fs.retVal = 0;
+			if (params_)
+			{
+				fs.params.length = params_.length;
+				for (i = 0, len = params_.length; i < len; ++i)
+				{
+					v = params_[i];
+					if (typeof v === "number" || typeof v === "string")
+						fs.params[i] = v;
+					else if (typeof v === "boolean")
+						fs.params[i] = (v ? 1 : 0);
+					else
+						fs.params[i] = 0;
+				}
+			}
+			else
+			{
+				cr.clearArray(fs.params);
+			}
+			self.runtime.trigger(cr.plugins_.Function.prototype.cnds.OnFunction, self, fs.name);
+			popFuncStack();
+			return fs.retVal;
+		};
+	};
+	function Cnds() {};
+	Cnds.prototype.OnFunction = function (name_)
+	{
+		var fs = getCurrentFuncStack();
+		if (!fs)
+			return false;
+		return cr.equals_nocase(name_, fs.name);
+	};
+	Cnds.prototype.CompareParam = function (index_, cmp_, value_)
+	{
+		var fs = getCurrentFuncStack();
+		if (!fs)
+			return false;
+		index_ = cr.floor(index_);
+		if (index_ < 0 || index_ >= fs.params.length)
+			return false;
+		return cr.do_cmp(fs.params[index_], cmp_, value_);
+	};
+	pluginProto.cnds = new Cnds();
+	function Acts() {};
+	Acts.prototype.CallFunction = function (name_, params_)
+	{
+		var fs = pushFuncStack();
+		fs.name = name_.toLowerCase();
+		fs.retVal = 0;
+		cr.shallowAssignArray(fs.params, params_);
+		var ran = this.runtime.trigger(cr.plugins_.Function.prototype.cnds.OnFunction, this, fs.name);
+		if (isInPreview && !ran)
+		{
+;
+		}
+		popFuncStack();
+	};
+	Acts.prototype.SetReturnValue = function (value_)
+	{
+		var fs = getCurrentFuncStack();
+		if (fs)
+			fs.retVal = value_;
+		else
+;
+	};
+	Acts.prototype.CallExpression = function (unused)
+	{
+	};
+	pluginProto.acts = new Acts();
+	function Exps() {};
+	Exps.prototype.ReturnValue = function (ret)
+	{
+		var fs = getOneAboveFuncStack();
+		if (fs)
+			ret.set_any(fs.retVal);
+		else
+			ret.set_int(0);
+	};
+	Exps.prototype.ParamCount = function (ret)
+	{
+		var fs = getCurrentFuncStack();
+		if (fs)
+			ret.set_int(fs.params.length);
+		else
+		{
+;
+			ret.set_int(0);
+		}
+	};
+	Exps.prototype.Param = function (ret, index_)
+	{
+		index_ = cr.floor(index_);
+		var fs = getCurrentFuncStack();
+		if (fs)
+		{
+			if (index_ >= 0 && index_ < fs.params.length)
+			{
+				ret.set_any(fs.params[index_]);
+			}
+			else
+			{
+;
+				ret.set_int(0);
+			}
+		}
+		else
+		{
+;
+			ret.set_int(0);
+		}
+	};
+	Exps.prototype.Call = function (ret, name_)
+	{
+		var fs = pushFuncStack();
+		fs.name = name_.toLowerCase();
+		fs.retVal = 0;
+		cr.clearArray(fs.params);
+		var i, len;
+		for (i = 2, len = arguments.length; i < len; i++)
+			fs.params.push(arguments[i]);
+		var ran = this.runtime.trigger(cr.plugins_.Function.prototype.cnds.OnFunction, this, fs.name);
+		if (isInPreview && !ran)
+		{
+;
+		}
+		popFuncStack();
+		ret.set_any(fs.retVal);
+	};
+	pluginProto.exps = new Exps();
+}());
+;
+;
 cr.plugins_.Keyboard = function(runtime)
 {
 	this.runtime = runtime;
@@ -24417,6 +24616,119 @@ cr.plugins_.Rex_Hash = function(runtime)
 }());
 ;
 ;
+cr.plugins_.Rex_JSONBuider = function(runtime)
+{
+	this.runtime = runtime;
+};
+(function ()
+{
+	var pluginProto = cr.plugins_.Rex_JSONBuider.prototype;
+	pluginProto.Type = function(plugin)
+	{
+		this.plugin = plugin;
+		this.runtime = plugin.runtime;
+	};
+	var typeProto = pluginProto.Type.prototype;
+	typeProto.onCreate = function()
+	{
+	};
+	pluginProto.Instance = function(type)
+	{
+		this.type = type;
+		this.runtime = type.runtime;
+	};
+	var instanceProto = pluginProto.Instance.prototype;
+	instanceProto.onCreate = function()
+	{
+        this.clean();
+	};
+	instanceProto.onDestroy = function ()
+	{
+	};
+	instanceProto.clean = function()
+	{
+        this.data = null;
+        this.current_object = null;
+	};
+	instanceProto.add_object = function (k_, type_)
+	{
+        var new_object = (type_===0)? []:{};
+        if (this.data === null)
+            this.data = new_object;
+        else
+            this.add_value(k_, new_object);
+        var previous_object = this.current_object;
+        this.current_object = new_object;
+        var current_frame = this.runtime.getCurrentEventStack();
+        var current_event = current_frame.current_event;
+		var solModifierAfterCnds = current_frame.isModifierAfterCnds();
+        if (solModifierAfterCnds)
+            this.runtime.pushCopySol(current_event.solModifiers);
+        current_event.retrigger();
+        if (solModifierAfterCnds)
+            this.runtime.popSol(current_event.solModifiers);
+        this.current_object = previous_object;
+		return false;
+	};
+	instanceProto.add_value = function (k_, v_)
+	{
+        if (this.current_object == null)
+        {
+            alert("JSON Builder: Please add a key-value into an object.");
+            return;
+        }
+        if (this.current_object instanceof Array)  // add to array
+            this.current_object.push(v_);
+        else                                                               // add to dictionary
+            this.current_object[k_] = v_;
+	};
+	instanceProto.saveToJSON = function ()
+	{
+		return { "d": this.data,
+                };
+	};
+	instanceProto.loadFromJSON = function (o)
+	{
+		this.data = o["d"];
+	};
+	function Cnds() {};
+	pluginProto.cnds = new Cnds();
+	Cnds.prototype.AddObject = function (k_, type_)
+	{
+        return this.add_object(k_, type_);
+	};
+	Cnds.prototype.SetRoot = function (type_)
+	{
+        this.clean();
+        return this.add_object("", type_);
+	};
+	function Acts() {};
+	pluginProto.acts = new Acts();
+    Acts.prototype.Clean = function ()
+	{
+        this.clean();
+	};
+    Acts.prototype.AddValue = function (k_, v_)
+	{
+        this.add_value(k_, v_);
+	};
+    Acts.prototype.AddBooleanValue = function (k_, v_)
+	{
+        this.add_value(k_, (v_ === 1));
+	};
+    Acts.prototype.AddNullValue = function (k_)
+	{
+        this.add_value(k_, null);
+	};
+	function Exps() {};
+	pluginProto.exps = new Exps();
+    Exps.prototype.AsJSON = function (ret)
+	{
+	    ret.set_string( JSON.stringify(this.data) );
+	};
+}());
+;
+;
 cr.plugins_.Rex_Nickname = function (runtime) {
 	this.runtime = runtime;
 };
@@ -26491,6 +26803,1080 @@ cr.plugins_.Rex_WorkSheet = function(runtime)
 	{
 	    ret.set_float( this.offset );
 	};
+}());
+;
+;
+cr.plugins_.Rex_jsshell = function (runtime) {
+    this.runtime = runtime;
+};
+(function () {
+    var pluginProto = cr.plugins_.Rex_jsshell.prototype;
+    pluginProto.Type = function (plugin) {
+        this.plugin = plugin;
+        this.runtime = plugin.runtime;
+    };
+    var typeProto = pluginProto.Type.prototype;
+    typeProto.onCreate = function () {
+    };
+    pluginProto.Instance = function (type) {
+        this.type = type;
+        this.runtime = type.runtime;
+    };
+    var instanceProto = pluginProto.Instance.prototype;
+    var callItem = function () {
+        this.name = "";
+        this.retVal = 0;
+        this.params = [];
+    };
+    var callbackItem = function () {
+        this.params = [];
+    };
+    instanceProto.onCreate = function () {
+        this.callStack = new StackKlass(callItem);
+        this.c2FnType = null;
+        this.callbackStack = new StackKlass(callbackItem);
+        var self = this;
+        this.getCallback = function (callbackTag) {
+            if (callbackTag == null)
+                return null;
+            var cb = function () {
+                self.callbackStack.push();
+                var lastCall = self.callbackStack.getCurrent();
+                cr.shallowAssignArray(lastCall.params, arguments);
+                self.callbackTag = callbackTag;
+                self.runtime.trigger(cr.plugins_.Rex_jsshell.prototype.cnds.OnCallback, self);
+                lastCall.params.length = 0;
+                self.callbackStack.pop();
+            }
+            return cb;
+        };
+        this.getC2FnCallback = function (c2FunctionName) {
+            if (c2FunctionName == null)
+                return null;
+            var cb = function () {
+                self.callC2Fn(c2FunctionName, arguments);
+            }
+            return cb;
+        };
+    };
+    instanceProto.onDestroy = function () {
+    };
+    instanceProto.LoadAPI = function (src, onloadCb, onerrorCb) {
+        var scripts = document.getElementsByTagName("script");
+        var exist = false;
+        for (var i = 0; i < scripts.length; i++) {
+            if (scripts[i].src.indexOf(src) != -1) {
+                exist = true;
+                break;
+            }
+        }
+        if (!exist) {
+            var newScriptTag = document.createElement("script");
+            newScriptTag["type"] = "text/javascript";
+            newScriptTag["src"] = src;
+            var self = this;
+            var onLoad = function () {
+                self.isLoaded = true;
+                if (onloadCb)
+                    onloadCb();
+            };
+            var onError = function () {
+                if (onerrorCb)
+                    onerrorCb();
+            };
+            newScriptTag["onload"] = onLoad;
+            newScriptTag["onerror"] = onError;
+            document.getElementsByTagName("head")[0].appendChild(newScriptTag);
+        }
+    };
+    instanceProto.getC2FnType = function () {
+        if (this.c2FnType === null) {
+            if (window["c2_callRexFunction2"])
+                this.c2FnType = "c2_callRexFunction2";
+            else if (window["c2_callFunction"])
+                this.c2FnType = "c2_callFunction";
+            else
+                this.c2FnType = "";
+        }
+        return this.c2FnType;
+    };
+    instanceProto.callC2Fn = function (c2FnName, params) {
+        var c2FnGlobalName = this.getC2FnType();
+        if (c2FnGlobalName === "")
+            return 0;
+        var i, cnt = params.length;
+        for (i = 0; i < cnt; i++) {
+            params[i] = din(params[i]);
+        }
+        var retValue = window[c2FnGlobalName](c2FnName, params);
+        return retValue;
+    };
+    var invokeFunction = function (functionName, params, isNewObject) {
+        var names = functionName.split(".");
+        var fnName = names.pop();
+        var o = getValue(names, window);
+        if (!o) {
+;
+            return;
+        }
+        var retValue;
+        if (isNewObject) {
+            params.unshift(null);
+            retValue = new (Function.prototype.bind.apply(o[fnName], params));
+        }
+        else {
+            retValue = o[fnName].apply(o, params);
+        }
+        return retValue;
+    };
+    function Cnds() { };
+    pluginProto.cnds = new Cnds();
+    Cnds.prototype.OnCallback = function (tag) {
+        return cr.equals_nocase(tag, this.callbackTag);
+    };
+    function Acts() { };
+    pluginProto.acts = new Acts();
+    Acts.prototype.InvokeFunction = function (varName) {
+        var lastCall = this.callStack.getCurrent();
+        this.callStack.pop();
+        var params = lastCall.params;
+        lastCall.params = [];
+        lastCall.retVal = invokeFunction(lastCall.name, params);
+        if (varName !== "") {
+            setValue(varName, lastCall.retVal, window);
+        }
+    };
+    Acts.prototype.CreateInstance = function (varName) {
+        if (varName === "")
+            return;
+        var lastCall = this.callStack.getCurrent();
+        this.callStack.pop();
+        var params = lastCall.params;
+        lastCall.params = [];
+        var o = invokeFunction(lastCall.name, params, true);
+        setValue(varName, o, window);
+    };
+    Acts.prototype.SetFunctionName = function (name) {
+        this.callStack.push();
+        var lastCall = this.callStack.getCurrent();
+        lastCall.name = name;
+        lastCall.retVal = 0;
+    };
+    Acts.prototype.AddValue = function (v) {
+        var lastCall = this.callStack.getCurrent();
+        lastCall.params.push(v);
+    };
+    Acts.prototype.AddJSON = function (v) {
+        var lastCall = this.callStack.getCurrent();
+        lastCall.params.push(JSON.parse(v));
+    };
+    Acts.prototype.AddBoolean = function (v) {
+        var lastCall = this.callStack.getCurrent();
+        lastCall.params.push(v === 1);
+    };
+    Acts.prototype.AddCallback = function (callbackTag) {
+        var lastCall = this.callStack.getCurrent();
+        lastCall.params.push(this.getCallback(callbackTag));
+    };
+    Acts.prototype.AddNull = function () {
+        var lastCall = this.callStack.getCurrent();
+        lastCall.params.push(null);
+    };
+    Acts.prototype.AddObject = function (varName) {
+        var lastCall = this.callStack.getCurrent();
+        lastCall.params.push(getValue(varName, window));
+    };
+    Acts.prototype.AddC2Callback = function (c2FnName) {
+        var lastCall = this.callStack.getCurrent();
+        lastCall.params.push(this.getC2FnCallback(c2FnName));
+    };
+    Acts.prototype.SetProp = function (varName, value) {
+        setValue(varName, value, window);
+    };
+    Acts.prototype.LoadAPI = function (src, successTag, errorTag) {
+        this.LoadAPI(src, this.getCallback(successTag), this.getCallback(errorTag));
+    };
+    function Exps() { };
+    pluginProto.exps = new Exps();
+    Exps.prototype.Param = function (ret, index, keys, defaultValue) {
+        var params = this.callbackStack.getCurrent().params;
+        var val = params[index];
+        if (typeof (keys) === "number") {
+            keys = [keys];
+        }
+        ret.set_any(getItemValue(val, keys, defaultValue));
+    };
+    Exps.prototype.ParamCount = function (ret) {
+        var params = this.callbackStack.getCurrent().params;
+        ret.set_int(params.length);
+    };
+    Exps.prototype.ReturnValue = function (ret, keys, defaultValue) {
+        if (typeof (keys) === "number") {
+            keys = [keys];
+        }
+        var preCall = this.callStack.getOneAbove();
+        ret.set_any(getItemValue(preCall.retVal, keys, defaultValue));
+    };
+    Exps.prototype.Prop = function (ret, keys, defaultValue) {
+        ret.set_any(getItemValue(window, keys, defaultValue));
+    };
+    var PARAMTYPE_VALUE = 0;
+    var PARAMTYPE_JSON = 1;
+    var PARAMTYPE_CALLBACK = 2;
+    var PARAMTYPE_VAR = 3;
+    var PARAMTYPE_C2FN = 4;
+    var gExpPattern = /^@#@(\[.*\])@#@/;
+    Exps.prototype.Call = function (ret, functionName) {
+        this.callStack.push();
+        var lastCall = this.callStack.getCurrent();
+        var params = [];
+        var i, cnt = arguments.length;
+        for (i = 2; i < cnt; i++) {
+            var param = arguments[i];
+            if ((typeof (param) === "string") && (gExpPattern.test(param))) {
+                param = param.match(gExpPattern)[1];
+                param = JSON.parse(param);
+                switch (param[0]) {
+                    case PARAMTYPE_VALUE: param = param[1]; break;
+                    case PARAMTYPE_JSON: param = param[1]; break;
+                    case PARAMTYPE_CALLBACK: param = this.getCallback(param[1]); break;
+                    case PARAMTYPE_VAR: param = getValue(param[1], window); break;
+                    case PARAMTYPE_C2FN: param = this.getC2FnCallback(param[1]); break;
+                    default: param = null;
+                }
+            }
+            params.push(param);
+        }
+        lastCall.retVal = invokeFunction(functionName, params);
+        ret.set_any(din(lastCall.retVal));
+    };
+    Exps.prototype.ValueParam = function (ret, value) {
+        var param = [PARAMTYPE_VALUE, value];
+        param = "@#@" + JSON.stringify(param) + "@#@";
+        ret.set_string(param);
+    };
+    Exps.prototype.JSONParam = function (ret, s) {
+        var param = [PARAMTYPE_JSON, JSON.parse(s)];
+        param = "@#@" + JSON.stringify(param) + "@#@";
+        ret.set_string(param);
+    };
+    Exps.prototype.BooleanParam = function (ret, b) {
+        var param = [PARAMTYPE_VALUE, (b === 1)];
+        param = "@#@" + JSON.stringify(param) + "@#@";
+        ret.set_string(param);
+    };
+    Exps.prototype.CallbackParam = function (ret, fnName) {
+        var param = [PARAMTYPE_CALLBACK, fnName];
+        param = "@#@" + JSON.stringify(param) + "@#@";
+        ret.set_string(param);
+    };
+    Exps.prototype.NullParam = function (ret) {
+        var param = [PARAMTYPE_VALUE, null];
+        param = "@#@" + JSON.stringify(param) + "@#@";
+        ret.set_string(param);
+    };
+    Exps.prototype.ObjectParam = function (ret, varName) {
+        var param = [PARAMTYPE_VAR, varName];
+        param = "@#@" + JSON.stringify(param) + "@#@";
+        ret.set_string(param);
+    };
+    Exps.prototype.C2FnParam = function (ret, fnName) {
+        var param = [PARAMTYPE_C2FN, fnName];
+        param = "@#@" + JSON.stringify(param) + "@#@";
+        ret.set_string(param);
+    };
+    var getValue = function (keys, root) {
+        if ((keys == null) || (keys === "") || (keys.length === 0)) {
+            return root;
+        }
+        else {
+            if (typeof (keys) === "string")
+                keys = keys.split(".");
+            var i, cnt = keys.length, key;
+            var entry = root;
+            for (i = 0; i < cnt; i++) {
+                key = keys[i];
+                if (key in entry) {
+                    entry = entry[key];
+                } else {
+;
+                    return;
+                }
+            }
+            return entry;
+        }
+    };
+    var getEntry = function (keys, root, defaultEntry) {
+        var entry = root;
+        if ((keys === "") || (keys.length === 0)) {
+        }
+        else {
+            if (typeof (keys) === "string")
+                keys = keys.split(".");
+            var i, cnt = keys.length, key;
+            for (i = 0; i < cnt; i++) {
+                key = keys[i];
+                if ((entry[key] == null) || (typeof (entry[key]) !== "object")) {
+                    var newEntry;
+                    if (i === cnt - 1) {
+                        newEntry = defaultEntry || {};
+                    }
+                    else {
+                        newEntry = {};
+                    }
+                    entry[key] = newEntry;
+                }
+                entry = entry[key];
+            }
+        }
+        return entry;
+    };
+    var setValue = function (keys, value, root) {
+        if ((keys === "") || (keys.length === 0)) {
+            if ((value !== null) && typeof (value) === "object") {
+                root = value;
+            }
+        }
+        else {
+            if (typeof (keys) === "string")
+                keys = keys.split(".");
+            var lastKey = keys.pop();
+            var entry = getEntry(keys, root);
+            entry[lastKey] = value;
+        }
+    };
+    var getItemValue = function (item, k, defaultValue) {
+        return din(getValue(k, item), defaultValue);
+    };
+    var din = function (d, defaultValue) {
+        var o;
+        if (d === true)
+            o = 1;
+        else if (d === false)
+            o = 0;
+        else if (d == null) {
+            if (defaultValue != null)
+                o = defaultValue;
+            else
+                o = 0;
+        }
+        else if (typeof (d) == "object")
+            o = JSON.stringify(d);
+        else
+            o = d;
+        return o;
+    };
+    var StackKlass = function (itemCb) {
+        this.items = [];
+        this.ptr = -1;
+        this.itemCb = itemCb;
+    };
+    var StackKlassProto = StackKlass.prototype;
+    StackKlassProto.getCurrent = function () {
+        if (this.ptr < 0)
+            return null;
+        return this.items[this.ptr];
+    };
+    StackKlassProto.getOneAbove = function () {
+        if (this.items.length == 0)
+            return null;
+        var i = this.ptr + 1;
+        if (i >= this.items.length)
+            i = this.items.length - 1;
+        return this.items[i];
+    };
+    StackKlassProto.push = function () {
+        this.ptr++;
+        if (this.ptr === this.items.length) {
+            this.items.push(new this.itemCb());
+        }
+        return this.items[this.ptr];
+    };
+    StackKlassProto.pop = function () {
+;
+        this.ptr--;
+    };
+}());
+;
+;
+cr.plugins_.Rex_taffydb = function (runtime) {
+    this.runtime = runtime;
+};
+cr.plugins_.Rex_taffydb.databases = {}; // {db: database, ownerUID: uid }
+(function () {
+    var pluginProto = cr.plugins_.Rex_taffydb.prototype;
+    pluginProto.Type = function (plugin) {
+        this.plugin = plugin;
+        this.runtime = plugin.runtime;
+    };
+    var typeProto = pluginProto.Type.prototype;
+    typeProto.onCreate = function () {};
+    pluginProto.Instance = function (type) {
+        this.type = type;
+        this.runtime = type.runtime;
+    };
+    var instanceProto = pluginProto.Instance.prototype;
+    instanceProto.onCreate = function () {
+        this.db_name = null;
+        this.LinkToDatabase(this.properties[0]);
+        var index_keys_input = this.properties[1];
+        if (index_keys_input === "") {
+            if (!this.recycled)
+                this.indexKeys = [];
+            else
+                this.indexKeys.length = 0;
+        } else {
+            this.indexKeys = index_keys_input.split(",");
+        }
+        this.keyType = {}; // 0=string, 1=number, 2=eval
+        this.rowID = "";
+        this.preparedItem = {};
+        if (!this.recycled)
+            this.preprocessCmd = {};
+        this.preprocessCmd["inc"] = {};
+        this.preprocessCmd["max"] = {};
+        this.preprocessCmd["min"] = {};
+        this.hasPreprocessCmd = false;
+        this.CleanFilters();
+        this.query_base = null;
+        this.query_flag = false;
+        this.current_rows = null;
+        this.filter_history = {
+            "flt": {},
+            "ord": ""
+        };
+        this.queriedRows = null;
+        this.exp_CurRowID = "";
+        this.exp_CurRowIndex = -1;
+        this.exp_LastSavedRowID = "";
+        this.__flthis_save = null;
+    };
+    instanceProto.LinkToDatabase = function (name) {
+        if (this.db_name === name)
+            return;
+        else if (this.db_name === "") {
+            this.db()["remove"]();
+        }
+        this.db_name = name;
+        if (name === "") // private database
+        {
+            this.db = window["TAFFY"]();
+        } else // public database
+        {
+            create_global_database(this.uid, name);
+            this.db = get_global_database_reference(name).db;
+        }
+    };
+    var create_global_database = function (ownerUID, db_name, db_content) {
+        if (cr.plugins_.Rex_taffydb.databases.hasOwnProperty(db_name))
+            return;
+        var db_ref = {
+            db: window["TAFFY"](db_content),
+            ownerID: ownerUID
+        };
+        cr.plugins_.Rex_taffydb.databases[db_name] = db_ref;
+    };
+    var get_global_database_reference = function (db_name) {
+        return cr.plugins_.Rex_taffydb.databases[db_name];
+    };
+    instanceProto.onDestroy = function () {
+        this.indexKeys.length = 0;
+        clean_table(this.preparedItem);
+        clean_table(this.filters);
+        this.order_cond.length = 0;
+        if (this.db_name === "")
+            this.db()["remove"]();
+        else {
+            var database_ref = get_global_database_reference(this.db_name);
+            if (database_ref.ownerUID === this.uid)
+                database_ref.ownerUID = null;
+        }
+        this.preprocessCmd["inc"] = {};
+        this.preprocessCmd["max"] = {};
+        this.preprocessCmd["min"] = {};
+    };
+    instanceProto.SaveRow = function (row, indexKeys, rowID, preprocessCmd) {
+        var invalid_rowID = (rowID == null) || (rowID === "");
+        if (!invalid_rowID) {
+            var items = this.db(rowID);
+            var itemOld = items["first"]();
+            if (itemOld) {
+                row = this.buildUpdateItem(itemOld, row, preprocessCmd);
+                items["update"](row);
+            }
+        }
+        else if ((indexKeys == null) || (indexKeys.length === 0)) {
+            row = this.buildUpdateItem(null, row, preprocessCmd);
+            this.db["insert"](row);
+        }
+        else {
+            var queryKeys = {},
+                keyName;
+            var i, cnt = this.indexKeys.length;
+            for (i = 0; i < cnt; i++) {
+                keyName = this.indexKeys[i];
+                if (row.hasOwnProperty(keyName)) {
+                    queryKeys[keyName] = row[keyName];
+                }
+            }
+            if (!is_empty(queryKeys)) {
+                var items = this.db(queryKeys);
+                var itemOld = items["first"]() || null;
+                row = this.buildUpdateItem(itemOld, row, preprocessCmd);
+                if (itemOld)
+                    items["update"](row);
+                else
+                    this.db["insert"](row);
+            }
+            else {
+                row = this.buildUpdateItem(null, row, preprocessCmd);
+                this.db["insert"](row);
+            }
+        }
+        if (row["___id"])
+            this.exp_LastSavedRowID = row["___id"];
+    };
+    instanceProto.buildUpdateItem = function (itemOld, preparedItem, preprocessCmd) {
+        if (!this.hasPreprocessCmd || (preprocessCmd == null))
+            return preparedItem;
+        var keys = preprocessCmd["inc"];
+        for (var k in keys) {
+            preparedItem[k] = getItemValue(itemOld, k, 0) + keys[k];
+            delete keys[k];
+        }
+        var keys = preprocessCmd["max"];
+        for (var k in keys) {
+            preparedItem[k] = Math.max(getItemValue(itemOld, k, 0), keys[k]);
+            delete keys[k];
+        }
+        var keys = preprocessCmd["min"];
+        for (var k in keys) {
+            preparedItem[k] = Math.min(getItemValue(itemOld, k, 0), keys[k]);
+            delete keys[k];
+        }
+        this.hasPreprocessCmd = false;
+        return preparedItem;
+    };
+    instanceProto.CleanFilters = function () {
+        this.filters = {};
+        if (this.order_cond == null)
+            this.order_cond = [];
+        this.order_cond.length = 0;
+    };
+    var isEmptyTable = function (o) {
+        for (var k in o)
+            return false;
+        return true;
+    }
+    instanceProto.NewFilters = function () {
+        this.query_base = null;
+        this.CleanFilters();
+        this.query_flag = true;
+    };
+    var COMPARE_TYPES = ["is", "!is", "gt", "lt", "gte", "lte"];
+    instanceProto.AddValueComparsion = function (k, cmp, v) {
+        if (!this.filters.hasOwnProperty(k))
+            this.filters[k] = {};
+        this.filters[k][COMPARE_TYPES[cmp]] = v;
+        this.query_flag = true;
+    };
+    instanceProto.AddValueInclude = function (k, v) {
+        if (!this.filters.hasOwnProperty(k))
+            this.filters[k] = [];
+        this.filters[k].push(v);
+        this.query_flag = true;
+    };
+    instanceProto.AddRegexTest = function (k, s, f) {
+        if (!this.filters.hasOwnProperty(k))
+            this.filters[k] = {};
+        this.filters[k]["regex"] = [s, f];
+        this.query_flag = true;
+    };
+    var ORDER_TYPES = ["desc", "asec", "logicaldesc", "logical"];
+    instanceProto.AddOrder = function (k, order_) {
+        this.order_cond.push(k + " " + ORDER_TYPES[order_]);
+        this.query_flag = true;
+    };
+    var process_filters = function (filters) {
+        for (var k in filters) {
+            if (filters[k].hasOwnProperty("regex")) {
+                var regex = filters[k]["regex"];
+                filters[k]["regex"] = new RegExp(regex[0], regex[1]);
+            }
+        }
+        return filters;
+    };
+    instanceProto.GetQueryResult = function () {
+        if (this.query_base == null) {
+            this.query_base = this.db();
+            this.filter_history["flt"] = {};
+            this.filter_history["ord"] = "";
+        }
+        var query_result = this.query_base;
+        if (!isEmptyTable(this.filters)) {
+            var filter_copy = JSON.parse(JSON.stringify(this.filters));
+            var filters = process_filters(this.filters);
+            query_result = query_result["filter"](filters);
+            for (var k in filter_copy)
+                this.filter_history["flt"][k] = filter_copy[k];
+        }
+        if (this.order_cond.length > 0) {
+            var ord = this.order_cond.join(", ");
+            this.filter_history["ord"] = ord;
+            query_result = query_result["order"](ord);
+        }
+        this.query_base = query_result;
+        this.CleanFilters();
+        return query_result;
+    };
+    instanceProto.GetCurrentQueriedRows = function () {
+        if (!this.queriedRows || this.query_flag) {
+            this.queriedRows = this.GetQueryResult();
+            this.query_flag = false;
+        }
+        return this.queriedRows;
+    };
+    instanceProto.Index2QueriedRowID = function (index_, default_value) {
+        var queriedRows = this.GetCurrentQueriedRows();
+        var row = queriedRows["get"]()[index_];
+        return getItemValue(row, "___id", default_value);
+    };
+    var getEvalValue = function (v, prefix) {
+        if (v == null)
+            v = 0;
+        else {
+            try {
+                v = eval("(" + v + ")");
+            } catch (e) {
+                if (prefix == null)
+                    prefix = "";
+                console.error("TaffyDB: Eval " + prefix + " : " + v + " failed");
+                v = 0;
+            }
+        }
+        return v;
+    };
+    var clean_table = function (o) {
+        for (var k in o)
+            delete o[k];
+    };
+    var is_empty = function (o) {
+        for (var k in o)
+            return false;
+        return true;
+    };
+    var getValue = function (keys, root) {
+        if ((keys == null) || (keys === "") || (keys.length === 0)) {
+            return root;
+        } else if (typeof (root) != 'object') {
+            return root;
+        } else {
+            if (typeof (keys) === "string")
+                keys = keys.split(".");
+            var i, cnt = keys.length,
+                key;
+            var entry = root;
+            for (i = 0; i < cnt; i++) {
+                key = keys[i];
+                if (entry.hasOwnProperty(key))
+                    entry = entry[key];
+                else
+                    return;
+            }
+            return entry;
+        }
+    };
+    var getItemValue = function (item, k, default_value) {
+        return din(getValue(k, item), default_value);
+    };
+    var din = function (d, default_value) {
+        var o;
+        if (d === true)
+            o = 1;
+        else if (d === false)
+            o = 0;
+        else if (d == null) {
+            if (default_value != null)
+                o = default_value;
+            else
+                o = 0;
+        } else if (typeof (d) == "object")
+            o = JSON.stringify(d);
+        else
+            o = d;
+        return o;
+    };
+    instanceProto.saveToJSON = function () {
+        var db_save = null;
+        if (this.db_name === "")
+            db_save = this.db()["get"]();
+        else {
+            var database_ref = get_global_database_reference(this.db_name);
+            if (database_ref.ownerUID === null)
+                database_ref.ownerUID = this.uid;
+            if (database_ref.ownerUID === this.uid)
+                db_save = this.db()["get"]();
+        }
+        var cur_fflt = {
+            "flt": this.filters,
+            "ord": this.order_cond
+        };
+        var qIds = null;
+        if (this.queriedRows) {
+            var rows = this.queriedRows["get"]();
+            var i, cnt = rows.length;
+            qIds = [];
+            for (i = 0; i < cnt; i++)
+                qIds.push(rows[i]["___id"]);
+        }
+        return {
+            "rID": this.rowID,
+            "name": this.db_name,
+            "idxKeys": this.indexKeys,
+            "db": db_save,
+            "fltcur": cur_fflt,
+            "preCmd": this.preprocessCmd,
+            "prepItm": this.preparedItem,
+            "flthis": (this.queriedRows) ? this.filter_history : null,
+            "kt": this.keyType,
+        };
+    };
+    instanceProto.loadFromJSON = function (o) {
+        this.rowID = o["rID"];
+        this.db_name = o["name"];
+        this.indexKeys = o["idxKeys"];
+        if (this.db_name === "")
+            this.db = window["TAFFY"](o["db"]);
+        else {
+            if (o["db"] !== null) {
+                if (cr.plugins_.Rex_taffydb.databases.hasOwnProperty(db_name))
+                    delete cr.plugins_.Rex_taffydb.databases[db_name];
+                create_global_database(this.uid, this.db_name, o["db"]);
+            }
+        }
+        this.filters = o["fltcur"]["flt"];
+        this.order_cond = o["fltcur"]["ord"];
+        this.preprocessCmd = o["preCmd"];
+        this.preparedItem = o["prepItm"];
+        this.__flthis_save = o["flthis"];
+        this.keyType = o["kt"];
+    };
+    instanceProto.afterLoad = function () {
+        if (this.db_name !== "") {
+            create_global_database(this.uid, this.db_name);
+            this.db = get_global_database_reference(this.db_name).db;
+        }
+        this.queriedRows = null;
+        var flthis = this.__flthis_save;
+        if (flthis) {
+            var q = this.db();
+            var flt = flthis["flt"];
+            if (!isEmptyTable(flt))
+                q = q["filter"](flt);
+            var ord = flthis["ord"];
+            if (ord !== "")
+                q = q["order"](ord);
+            this.queriedRows = q;
+            this.__flthis_save = null;
+        }
+    };
+    function Cnds() {};
+    pluginProto.cnds = new Cnds();
+    Cnds.prototype.ForEachRow = function () {
+        var queriedRows = this.GetCurrentQueriedRows();
+        var runtime = this.runtime;
+        var current_frame = runtime.getCurrentEventStack();
+        var current_event = current_frame.current_event;
+        var solModifierAfterCnds = current_frame.isModifierAfterCnds();
+        var self = this;
+        var for_each_row = function (r, i) {
+            if (solModifierAfterCnds) {
+                runtime.pushCopySol(current_event.solModifiers);
+            }
+            self.exp_CurRowID = r["___id"];
+            self.exp_CurRowIndex = i;
+            current_event.retrigger();
+            if (solModifierAfterCnds) {
+                runtime.popSol(current_event.solModifiers);
+            }
+        };
+        queriedRows["each"](for_each_row);
+        this.exp_CurRowID = "";
+        this.exp_CurRowIndex = -1;
+        return false;
+    };
+    Cnds.prototype.NewFilters = function () {
+        this.NewFilters();
+        return true;
+    };
+    Cnds.prototype.AddValueComparsion = function (k, cmp, v) {
+        this.AddValueComparsion(k, cmp, v);
+        return true;
+    };
+    Cnds.prototype.AddBooleanValueComparsion = function (k, v) {
+        this.AddValueComparsion(k, 0, (v === 1));
+        return true;
+    };
+    Cnds.prototype.AddValueInclude = function (k, v) {
+        this.AddValueInclude(k, v);
+        return true;
+    };
+    Cnds.prototype.AddRegexTest = function (k, s, f) {
+        this.AddRegexTest(k, s, f);
+        return true;
+    };
+    Cnds.prototype.AddOrder = function (k, order_) {
+        this.AddOrder(k, order_);
+        return true;
+    };
+    function Acts() {};
+    pluginProto.acts = new Acts();
+    Acts.prototype.InsertCSV = function (csv_string, is_eval, delimiter) {
+        is_eval = (is_eval === 1);
+        var csv_data = CSVToArray(csv_string, delimiter);
+        var col_keys = csv_data.shift(),
+            col_key;
+        var csv_row, row, cell_value;
+        var r, row_cnt = csv_data.length;
+        var c, col_cnt = col_keys.length;
+        var prefix; // for debug
+        for (r = 0; r < row_cnt; r++) {
+            csv_row = csv_data[r];
+            row = {};
+            for (c = 0; c < col_cnt; c++) {
+                col_key = col_keys[c];
+                cell_value = csv_row[c]; // string
+                prefix = " (" + r + "," + c + ") ";
+                if (is_eval)
+                    row[col_key] = getEvalValue(cell_value, prefix);
+                else {
+                    if (this.keyType.hasOwnProperty(col_key)) {
+                        var type = this.keyType[col_key];
+                        switch (type) {
+                            case 1: // number
+                                cell_value = parseFloat(cell_value);
+                                break;
+                            case 2: // eval
+                                cell_value = getEvalValue(cell_value, prefix);
+                                break;
+                        }
+                    }
+                    row[col_key] = cell_value;
+                }
+            }
+            this.SaveRow(row, this.indexKeys);
+        }
+        clean_table(this.keyType);
+    };
+    Acts.prototype.InsertJSON = function (json_string) {
+        var rows;
+        try {
+            rows = JSON.parse(json_string);
+        } catch (err) {
+            return;
+        }
+        var i, cnt = rows.length;
+        for (i = 0; i < cnt; i++)
+            this.SaveRow(rows[i], this.indexKeys);
+    };
+    Acts.prototype.RemoveByRowID = function (rowID) {
+        this.db(rowID)["remove"]();
+    };
+    Acts.prototype.RemoveByRowIndex = function (index_) {
+        var rowID = this.Index2QueriedRowID(index_, null);
+        if (rowID === null)
+            return;
+        this.db(rowID)["remove"]();
+    };
+    Acts.prototype.SetIndexKeys = function (params_) {
+        cr.shallowAssignArray(this.indexKeys, params_.split(","));
+    };
+    Acts.prototype.RemoveAll = function () {
+        this.db()["remove"]();
+    };
+    Acts.prototype.SetValue = function (key_, value_, cond) {
+        if (cond === 0)
+            this.preparedItem[key_] = value_;
+        else {
+            var cmdName = (cond === 1) ? "max" : "min";
+            this.preprocessCmd[cmdName][key_] = value_;
+            this.hasPreprocessCmd = true;
+        }
+    };
+    Acts.prototype.SetBooleanValue = function (key_, is_true) {
+        this.preparedItem[key_] = (is_true === 1);
+    };
+    Acts.prototype.Save = function () {
+        this.SaveRow(this.preparedItem, this.indexKeys, this.rowID, this.preprocessCmd);
+        this.rowID = "";
+        this.preparedItem = {};
+    };
+    Acts.prototype.UpdateQueriedRows = function (key_, value_) {
+        var queriedRows = this.GetCurrentQueriedRows();
+        var item = {};
+        item[key_] = value_;
+        queriedRows["update"](item);
+    };
+    Acts.prototype.UpdateQueriedRows_BooleanValue = function (key_, is_true) {
+        var queriedRows = this.GetCurrentQueriedRows();
+        var item = {};
+        item[key_] = (is_true === 1);
+        queriedRows["update"](item);
+    };
+    Acts.prototype.SetRowID = function (rowID) {
+        this.rowID = rowID;
+    };
+    Acts.prototype.SetRowIndex = function (index_) {
+        this.rowID = this.Index2QueriedRowID(index_, null);
+    };
+    Acts.prototype.IncValue = function (key_, value_) {
+        this.preprocessCmd["inc"][key_] = value_;
+        this.hasPreprocessCmd = true;
+    };
+    Acts.prototype.SetJSON = function (key_, value_) {
+        this.preparedItem[key_] = JSON.parse(value_);
+    };
+    Acts.prototype.NewFilters = function () {
+        this.NewFilters();
+    };
+    Acts.prototype.AddValueComparsion = function (k, cmp, v) {
+        this.AddValueComparsion(k, cmp, v);
+    };
+    Acts.prototype.AddBooleanValueComparsion = function (k, v) {
+        this.AddValueComparsion(k, 0, (v === 1));
+    };
+    Acts.prototype.AddValueInclude = function (k, v) {
+        this.AddValueInclude(k, v);
+    };
+    Acts.prototype.AddRegexTest = function (k, s, f) {
+        this.AddRegexTest(k, s, f);
+    };
+    Acts.prototype.AddOrder = function (k, order_) {
+        this.AddOrder(k, order_);
+    };
+    Acts.prototype.RemoveQueriedRows = function () {
+        var queriedRows = this.queriedRows;
+        if (queriedRows == null)
+            queriedRows = this.db(this.filters);
+        queriedRows["remove"]();
+        this.queriedRows = null;
+        this.CleanFilters();
+    };
+    Acts.prototype.InsertCSV_DefineType = function (key_, type_) {
+        this.keyType[key_] = type_;
+    };
+    Acts.prototype.LinkToDatabase = function (name) {
+        this.LinkToDatabase(name);
+    };
+    function Exps() {};
+    pluginProto.exps = new Exps();
+    Exps.prototype.At = function (ret) {
+        var primary_keys = {},
+            keyName;
+        var i, cnt = this.indexKeys.length;
+        for (i = 0; i < cnt; i++) {
+            keyName = this.indexKeys[i];
+            primary_keys[keyName] = arguments[i + 1];
+        }
+        var row = this.db(primary_keys)["first"]();
+        var k = arguments[cnt + 1];
+        var default_value = arguments[cnt + 2];
+        ret.set_any(getItemValue(row, k, default_value));
+    };
+    Exps.prototype.CurRowContent = function (ret, k, default_value) {
+        var row = this.db(this.exp_CurRowID)["get"]()[0];
+        ret.set_any(getItemValue(row, k, default_value));
+    };
+    Exps.prototype.Index2QueriedRowContent = function (ret, i, k, default_value) {
+        var queriedRows = this.GetCurrentQueriedRows();
+        var row = queriedRows["get"]()[i];
+        ret.set_any(getItemValue(row, k, default_value));
+    };
+    Exps.prototype.QueriedRowsCount = function (ret) {
+        var queriedRows = this.GetCurrentQueriedRows();
+        ret.set_int(queriedRows["count"]());
+    };
+    Exps.prototype.QueriedSum = function (ret, k) {
+        var queriedRows = this.GetCurrentQueriedRows();
+        ret.set_int(queriedRows["sum"](k));
+    };
+    Exps.prototype.QueriedMin = function (ret, k) {
+        var queriedRows = this.GetCurrentQueriedRows();
+        ret.set_int(queriedRows["min"](k));
+    };
+    Exps.prototype.QueriedMax = function (ret, k) {
+        var queriedRows = this.GetCurrentQueriedRows();
+        ret.set_int(queriedRows["max"](k));
+    };
+    Exps.prototype.QueriedRowsAsJSON = function (ret) {
+        var queriedRows = this.GetCurrentQueriedRows();
+        ret.set_string(queriedRows["stringify"]());
+    };
+    Exps.prototype.KeyRowID = function (ret) {
+        ret.set_string("___id");
+    };
+    Exps.prototype.LastSavedRowID = function (ret) {
+        ret.set_string(this.exp_LastSavedRowID);
+    };
+    Exps.prototype.ID2RowContent = function (ret, rowID, k, default_value) {
+        var row = this.db(rowID)["get"]()[0];
+        ret.set_any(getItemValue(row, k, default_value));
+    };
+    Exps.prototype.QueriedRowsIndex2RowID = function (ret, index_) {
+        ret.set_string(this.Index2QueriedRowID(index_, ""));
+    };
+    Exps.prototype.CurRowIndex = function (ret) {
+        ret.set_int(this.exp_CurRowIndex);
+    };
+    Exps.prototype.CurRowID = function (ret) {
+        ret.set_any(this.exp_CurRowID);
+    };
+    Exps.prototype.Index2QueriedRowID = function (ret, index_) {
+        ret.set_string(this.Index2QueriedRowID(index_, ""));
+    };
+    Exps.prototype.AllRowsAsJSON = function (ret) {
+        ret.set_string(this.db()["stringify"]());
+    };
+    Exps.prototype.AllRowsCount = function (ret) {
+        ret.set_int(this.db()["count"]());
+    };
+    Exps.prototype.DatabaseName = function (ret) {
+        ret.set_string(this.db_name);
+    };
+    var CSVToArray = function (strData, strDelimiter) {
+        strDelimiter = (strDelimiter || ",");
+        var objPattern = new RegExp(
+            (
+                "(\\" + strDelimiter + "|\\r?\\n|\\r|^)" +
+                "(?:\"([^\"]*(?:\"\"[^\"]*)*)\"|" +
+                "([^\"\\" + strDelimiter + "\\r\\n]*))"
+            ),
+            "gi"
+        );
+        var arrData = [
+            []
+        ];
+        var arrMatches = null;
+        while (arrMatches = objPattern.exec(strData)) {
+            var strMatchedDelimiter = arrMatches[1];
+            if (
+                strMatchedDelimiter.length &&
+                (strMatchedDelimiter != strDelimiter)
+            ) {
+                arrData.push([]);
+            }
+            if (arrMatches[2]) {
+                var strMatchedValue = arrMatches[2].replace(
+                    new RegExp("\"\"", "g"),
+                    "\""
+                );
+            } else {
+                var strMatchedValue = arrMatches[3];
+            }
+            arrData[arrData.length - 1].push(strMatchedValue);
+        }
+        return (arrData);
+    };
 }());
 ;
 ;
@@ -29611,1103 +30997,6 @@ cr.plugins_.WebStorage = function(runtime)
 			"c2dictionary": true,
 			"data": o
 		}));
-	};
-	pluginProto.exps = new Exps();
-}());
-;
-;
-/*
-cr.plugins_.cranberrygame_CordovaGame = function(runtime)
-{
-	this.runtime = runtime;
-	Type
-		onCreate
-	Instance
-		onCreate
-		draw
-		drawGL
-	cnds
-	acts
-	exps
-};
-*/
-cr.plugins_.cranberrygame_CordovaGame = function(runtime)
-{
-	this.runtime = runtime;
-};
-(function ()
-{
-	var pluginProto = cr.plugins_.cranberrygame_CordovaGame.prototype;
-	pluginProto.Type = function(plugin)
-	{
-		this.plugin = plugin;
-		this.runtime = plugin.runtime;
-	};
-	var typeProto = pluginProto.Type.prototype;
-	typeProto.onCreate = function()
-	{
-/*
-		var newScriptTag=document.createElement('script');
-		newScriptTag.setAttribute("type","text/javascript");
-		newScriptTag.setAttribute("src", "mylib.js");
-		document.getElementsByTagName("head")[0].appendChild(newScriptTag);
-		var scripts=document.getElementsByTagName("script");
-		var scriptExist=false;
-		for(var i=0;i<scripts.length;i++){
-			if(scripts[i].src.indexOf("cordova.js")!=-1||scripts[i].src.indexOf("phonegap.js")!=-1){
-				scriptExist=true;
-				break;
-			}
-		}
-		if(!scriptExist){
-			var newScriptTag=document.createElement("script");
-			newScriptTag.setAttribute("type","text/javascript");
-			newScriptTag.setAttribute("src", "cordova.js");
-			document.getElementsByTagName("head")[0].appendChild(newScriptTag);
-		}
-*/
-		if(this.runtime.isBlackberry10 || this.runtime.isWindows8App || this.runtime.isWindowsPhone8 || this.runtime.isWindowsPhone81){
-			var scripts=document.getElementsByTagName("script");
-			var scriptExist=false;
-			for(var i=0;i<scripts.length;i++){
-				if(scripts[i].src.indexOf("cordova.js")!=-1||scripts[i].src.indexOf("phonegap.js")!=-1){
-					scriptExist=true;
-					break;
-				}
-			}
-			if(!scriptExist){
-				var newScriptTag=document.createElement("script");
-				newScriptTag.setAttribute("type","text/javascript");
-				newScriptTag.setAttribute("src", "cordova.js");
-				document.getElementsByTagName("head")[0].appendChild(newScriptTag);
-			}
-		}
-	};
-	pluginProto.Instance = function(type)
-	{
-		this.type = type;
-		this.runtime = type.runtime;
-	};
-	var instanceProto = pluginProto.Instance.prototype;
-	instanceProto.onCreate = function()
-	{
-/*
-		var self=this;
-		window.addEventListener("resize", function () {//cranberrygame
-			self.runtime.trigger(cr.plugins_.cranberrygame_CordovaGame.prototype.cnds.TriggerCondition, self);
-		});
-*/
-		if (!(this.runtime.isAndroid || this.runtime.isiOS))
-			return;
-        if (typeof game == 'undefined')
-            return;
-		var self = this;
-		game["setUp"]();
-		game['onLoginSucceeded'] = function(result) {
-			var playerDetail = result;
-			self.playerId = playerDetail['playerId'];
-			self.playerDisplayName = playerDetail['playerDisplayName'];
-			self.curTag = game['tag'];
-			self.runtime.trigger(cr.plugins_.cranberrygame_CordovaGame.prototype.cnds.OnLoginSucceeded, self);
-		};
-		game['onLoginFailed'] = function() {
-			self.curTag = game['tag'];
-			self.runtime.trigger(cr.plugins_.cranberrygame_CordovaGame.prototype.cnds.OnLoginFailed, self);
-		};
-		game['onGetPlayerImageSucceeded'] = function(result) {
-			self.playerImageUrl = result;
-			self.runtime.trigger(cr.plugins_.cranberrygame_CordovaGame.prototype.cnds.OnGetPlayerImageSucceeded, self);
-		};
-		game['onGetPlayerImageFailed'] = function() {
-			self.runtime.trigger(cr.plugins_.cranberrygame_CordovaGame.prototype.cnds.OnGetPlayerImageFailed, self);
-		};
-		game['onGetPlayerScoreSucceeded'] = function(result) {
-			self.playerScore = result;
-			self.curTag = game['tag'];
-			self.runtime.trigger(cr.plugins_.cranberrygame_CordovaGame.prototype.cnds.OnGetPlayerScoreSucceeded, self);
-		};
-		game['onGetPlayerScoreFailed'] = function() {
-			self.curTag = game['tag'];
-			self.runtime.trigger(cr.plugins_.cranberrygame_CordovaGame.prototype.cnds.OnGetPlayerScoreFailed, self);
-		};
-		game['onSubmitScoreSucceeded'] = function() {
-			self.curTag = game['tag'];
-			self.runtime.trigger(cr.plugins_.cranberrygame_CordovaGame.prototype.cnds.OnSubmitScoreSucceeded, self);
-		};
-		game['onSubmitScoreFailed'] = function() {
-			self.curTag = game['tag'];
-			self.runtime.trigger(cr.plugins_.cranberrygame_CordovaGame.prototype.cnds.OnSubmitScoreFailed, self);
-		};
-		game['onUnlockAchievementSucceeded'] = function() {
-			self.curTag = game['tag'];
-			self.runtime.trigger(cr.plugins_.cranberrygame_CordovaGame.prototype.cnds.OnUnlockAchievementSucceeded, self);
-		};
-		game['onUnlockAchievementFailed'] = function() {
-			self.curTag = game['tag'];
-			self.runtime.trigger(cr.plugins_.cranberrygame_CordovaGame.prototype.cnds.OnUnlockAchievementFailed, self);
-		};
-		game['onIncrementAchievementSucceeded'] = function() {
-			self.curTag = game['tag'];
-			self.runtime.trigger(cr.plugins_.cranberrygame_CordovaGame.prototype.cnds.OnIncrementAchievementSucceeded, self);
-		};
-		game['onIncrementAchievementFailed'] = function() {
-			self.curTag = game['tag'];
-			self.runtime.trigger(cr.plugins_.cranberrygame_CordovaGame.prototype.cnds.OnIncrementAchievementFailed, self);
-		};
-		game['onResetAchievementsSucceeded'] = function() {
-			self.runtime.trigger(cr.plugins_.cranberrygame_CordovaGame.prototype.cnds.OnResetAchievementsSucceeded, self);
-		};
-		game['onResetAchievementsFailed'] = function() {
-			self.runtime.trigger(cr.plugins_.cranberrygame_CordovaGame.prototype.cnds.OnResetAchievementsFailed, self);
-		};
-	};
-	instanceProto.draw = function(ctx)
-	{
-	};
-	instanceProto.drawGL = function (glw)
-	{
-	};
-/*
-	instanceProto.at = function (x)
-	{
-		return this.arr[x];
-	};
-	instanceProto.set = function (x, val)
-	{
-		this.arr[x] = val;
-	};
-*/
-	function Cnds() {};
-/*
-	Cnds.prototype.MyCondition = function (myparam)
-	{
-		return myparam >= 0;
-	};
-	Cnds.prototype.TriggerCondition = function ()
-	{
-		return true;
-	};
-*/
-	Cnds.prototype.OnLoginSucceeded = function (tag)
-	{
-		return cr.equals_nocase(tag, this.curTag);
-	};
-	Cnds.prototype.OnLoginFailed = function (tag)
-	{
-		return cr.equals_nocase(tag, this.curTag);
-	};
-	Cnds.prototype.IsLoggedIn = function ()
-	{
-		if (!(this.runtime.isAndroid || this.runtime.isiOS))
-			return false;
-        if (typeof game == 'undefined')
-			return false;
-		return game['isLoggedIn']();
-	};
-	Cnds.prototype.OnGetPlayerImageSucceeded = function ()
-	{
-		return true;
-	};
-	Cnds.prototype.OnGetPlayerImageFailed = function ()
-	{
-		return true;
-	};
-	Cnds.prototype.OnGetPlayerScoreSucceeded = function (tag)
-	{
-		return cr.equals_nocase(tag, this.curTag);
-	};
-	Cnds.prototype.OnGetPlayerScoreFailed = function (tag)
-	{
-		return cr.equals_nocase(tag, this.curTag);
-	};
-	Cnds.prototype.OnSubmitScoreSucceeded = function (tag)
-	{
-		return cr.equals_nocase(tag, this.curTag);
-	};
-	Cnds.prototype.OnSubmitScoreFailed = function (tag)
-	{
-		return cr.equals_nocase(tag, this.curTag);
-	};
-	Cnds.prototype.OnUnlockAchievementSucceeded = function (tag)
-	{
-		return cr.equals_nocase(tag, this.curTag);
-	};
-	Cnds.prototype.OnUnlockAchievementFailed = function (tag)
-	{
-		return cr.equals_nocase(tag, this.curTag);
-	};
-	Cnds.prototype.OnIncrementAchievementSucceeded = function (tag)
-	{
-		return cr.equals_nocase(tag, this.curTag);
-	};
-	Cnds.prototype.OnIncrementAchievementFailed = function (tag)
-	{
-		return cr.equals_nocase(tag, this.curTag);
-	};
-	Cnds.prototype.OnResetAchievementsSucceeded = function ()
-	{
-		return true;
-	};
-	Cnds.prototype.OnResetAchievementsFailed = function ()
-	{
-		return true;
-	};
-	pluginProto.cnds = new Cnds();
-	function Acts() {};
-/*
-	Acts.prototype.MyAction = function (myparam)
-	{
-		alert(myparam);
-	};
-	Acts.prototype.TriggerAction = function ()
-	{
-		var self=this;
-		self.runtime.trigger(cr.plugins_.cranberrygame_CordovaGame.prototype.cnds.TriggerCondition, self);
-	};
-*/
-	Acts.prototype.Login = function (tag)
-	{
-		if (!(this.runtime.isAndroid || this.runtime.isiOS))
-			return;
-        if (typeof game == 'undefined')
-            return;
-		var self = this;
-		game["login"](tag);
-	};
-	Acts.prototype.GetPlayerImage = function ()
-	{
-		if (!(this.runtime.isAndroid || this.runtime.isiOS))
-			return;
-        if (typeof game == 'undefined')
-            return;
-		var self = this;
-		game["getPlayerImage"]();
-	};
-	Acts.prototype.GetPlayerScore = function (leaderboardId, tag)
-	{
-		if (!(this.runtime.isAndroid || this.runtime.isiOS))
-			return;
-        if (typeof game == 'undefined')
-            return;
-		var self = this;
-		game["getPlayerScore"](leaderboardId, tag);
-	};
-	Acts.prototype.SubmitScore = function (leaderboardId, score, tag)
-	{
-		if (!(this.runtime.isAndroid || this.runtime.isiOS))
-			return;
-        if (typeof game == 'undefined')
-            return;
-		var self = this;
-		game["submitScore"](leaderboardId, score, tag);
-	};
-	Acts.prototype.ShowLeaderboard = function (leaderboardId)
-	{
-		if (!(this.runtime.isAndroid || this.runtime.isiOS))
-			return;
-        if (typeof game == 'undefined')
-            return;
-		var self = this;
-		game["showLeaderboard"](leaderboardId);
-	};
-	Acts.prototype.ShowLeaderboards = function ()
-	{
-		if (!(this.runtime.isAndroid || this.runtime.isiOS))
-			return;
-        if (typeof game == 'undefined')
-            return;
-		var self = this;
-		game["showLeaderboards"]();
-	};
-	Acts.prototype.UnlockAchievement = function (achievementId, tag)
-	{
-		if (!(this.runtime.isAndroid || this.runtime.isiOS))
-			return;
-        if (typeof game == 'undefined')
-            return;
-		var self = this;
-		game["unlockAchievement"](achievementId, tag);
-	};
-	Acts.prototype.IncrementAchievement = function (achievementId, incrementalStepOrCurrentPercent, tag)
-	{
-		if (!(this.runtime.isAndroid || this.runtime.isiOS))
-			return;
-        if (typeof game == 'undefined')
-            return;
-		var self = this;
-		game["incrementAchievement"](achievementId, incrementalStepOrCurrentPercent, tag);
-	};
-	Acts.prototype.ShowAchievements = function ()
-	{
-		if (!(this.runtime.isAndroid || this.runtime.isiOS))
-			return;
-        if (typeof game == 'undefined')
-            return;
-		var self = this;
-		game["showAchievements"]();
-	};
-	Acts.prototype.ResetAchievements = function ()
-	{
-		if (!(this.runtime.isAndroid || this.runtime.isiOS))
-			return;
-        if (typeof game == 'undefined')
-            return;
-		var self = this;
-		game["resetAchievements"]();
-	};
-	Acts.prototype.Logout = function ()
-	{
-		if (!(this.runtime.isAndroid || this.runtime.isiOS))
-			return;
-        if (typeof game == 'undefined')
-            return;
-		var self = this;
-		game["logout"]();
-	};
-	pluginProto.acts = new Acts();
-	function Exps() {};
-/*
-	Exps.prototype.MyExpression = function (ret)	// 'ret' must always be the first parameter - always return the expression's result through it!
-	{
-		ret.set_int(1337);				// return our value
-	};
-	Exps.prototype.Text = function (ret, param) //cranberrygame
-	{
-		ret.set_string("Hello");		// for ef_return_string
-	};
-*/
-	Exps.prototype.PlayerId = function (ret)	// 'ret' must always be the first parameter - always return the expression's result through it!
-	{
-		ret.set_string(this.playerId);		// for ef_return_string
-	};
-	Exps.prototype.PlayerDisplayName = function (ret)	// 'ret' must always be the first parameter - always return the expression's result through it!
-	{
-		ret.set_string(this.playerDisplayName);		// for ef_return_string
-	};
-	Exps.prototype.PlayerImageUrl = function (ret)	// 'ret' must always be the first parameter - always return the expression's result through it!
-	{
-		ret.set_string(this.playerImageUrl);		// for ef_return_string
-	};
-	Exps.prototype.PlayerScore = function (ret)	// 'ret' must always be the first parameter - always return the expression's result through it!
-	{
-		ret.set_int(this.playerScore);				// return our value
-	};
-	pluginProto.exps = new Exps();
-}());
-;
-;
-/*
-cr.plugins_.cranberrygame_CordovaIAP = function(runtime)
-{
-	this.runtime = runtime;
-	Type
-		onCreate
-	Instance
-		onCreate
-		draw
-		drawGL
-	cnds
-	acts
-	exps
-};
-*/
-cr.plugins_.cranberrygame_CordovaIAP = function(runtime)
-{
-	this.runtime = runtime;
-};
-(function ()
-{
-	/* interface:
-	function Store()
-	{
-		this.onpurchasesuccess = null;
-		this.onpurchasefail = null;
-		this.onconsumesuccess = null;
-		this.onconsumefail = null;
-		this.onstorelistingsuccess = null;
-		this.onstorelistingfail = null;
-		this.onrestorepurchasessuccess = null;
-		this.onrestorepurchasesfail = null;
-		this.product_id_list = [];
-	};
-	Store.prototype.isAvailable = function () {};
-	Store.prototype.supportsConsumables = function () {};
-	Store.prototype.addProductIds = function (ids) {};
-	Store.prototype.isTrial = function () {};
-	Store.prototype.isLicensed = function () {};
-	Store.prototype.hasProduct = function (product_) {};
-	Store.prototype.purchaseApp = function () {};
-	Store.prototype.purchaseProduct = function (product_) {};
-	Store.prototype.consumeProduct = function (product_) {}; //cranberrygame
-	Store.prototype.restorePurchases = function (tag) {}; //cranberrygame
-	Store.prototype.requestStoreListing = function () {};
-	Store.prototype.getAppName = function () {};
-	Store.prototype.getAppFormattedPrice = function () {};
-	Store.prototype.getProductName = function (product_) {};
-	Store.prototype.getProductFormattedPrice = function (product_) {};
-	*/
-	function AndroidStore(androidApplicationLicenseKey)
-	{
-		this.onpurchasesuccess = null;
-		this.onpurchasefail = null;
-		this.onconsumesuccess = null;
-		this.onconsumefail = null;
-		this.onstorelistingsuccess = null;
-		this.onstorelistingfail = null;
-		this.onrestorepurchasessuccess = null;
-		this.onrestorepurchasesfail = null;
-		this.product_id_list = [];
-		this.existing_purchases = [];
-		this.product_info = {};		// map product id to info
-		this.androidApplicationLicenseKey = androidApplicationLicenseKey;//cranberrygame
-		this.initialized = false; //cranberrygame
-		window['iap']['setUp'](this.androidApplicationLicenseKey);
-	};
-	AndroidStore.prototype.isAvailable = function ()
-	{
-		return true;
-	};
-	AndroidStore.prototype.supportsConsumables = function ()
-	{
-		return false;
-	};
-	AndroidStore.prototype.addProductIds = function (idstring)
-	{
-/*
-		if (idstring.indexOf(",") === -1)
-			this.product_id_list.push(idstring);
-		else
-			this.product_id_list.push.apply(this.product_id_list, idstring.split(","));
-*/
-		if (idstring.indexOf(",") === -1) {
-			if (this.product_id_list.indexOf(idstring) == -1)
-				this.product_id_list.push(idstring);
-		}
-		else {
-			var arr = idstring.split(",");
-			for (var i = 0 ; i < arr.length ; i++) {
-				if (this.product_id_list.indexOf(arr[i]) == -1)
-					this.product_id_list.push(arr[i]);
-			}
-		}
-	};
-	AndroidStore.prototype.isTrial = function ()
-	{
-		return !this.isLicensed();
-	};
-	AndroidStore.prototype.isLicensed = function ()
-	{
-		return this.hasProduct("app");
-	};
-	AndroidStore.prototype.hasProduct = function (product_)
-	{
-		return this.existing_purchases.indexOf(product_) !== -1;
-	};
-	AndroidStore.prototype.purchaseApp = function ()
-	{
-		this.purchaseProduct("app");
-	};
-	AndroidStore.prototype.purchaseProduct = function (product_)
-	{
-		if (!this.isAvailable())
-			return;
-		var self = this;
-		window['iap']['purchaseProduct'](product_, function (result)
-		{
-			if (self.existing_purchases.indexOf(product_) === -1)
-				self.existing_purchases.push(product_);
-			if (self.onpurchasesuccess)
-				self.onpurchasesuccess(product_);
-		},
-		function (error)
-		{
-			if (self.onpurchasefail)
-				self.onpurchasefail(product_, error);
-		});
-	};
-	AndroidStore.prototype.consumeProduct = function (product_)
-	{
-		if (!this.isAvailable())
-			return;
-		var self = this;
-		var product_id_list = [];
-		if (product_.indexOf(",") === -1)
-			product_id_list.push(product_);
-		else
-			product_id_list.push.apply(product_id_list, product_.split(","));
-		window['iap']['consumeProduct'](product_id_list, function (result)
-		{
-			for (var i = 0 ; i < product_id_list.length ; i++) {
-				if (self.existing_purchases.indexOf(product_id_list[i]) !== -1)
-					self.existing_purchases.splice(self.existing_purchases.indexOf(product_id_list[i]),1);
-			}
-			if (self.onconsumesuccess)
-				self.onconsumesuccess(product_);
-		},
-		function (error)
-		{
-			if (self.onconsumefail)
-				self.onconsumefail(product_, error);
-		});
-	};
-	AndroidStore.prototype.restorePurchases = function (tag)
-	{
-		if (!this.isAvailable())
-			return;
-		var self = this;
-		window['iap']["restorePurchases"](function (result)
-		{
-			for (var i = 0 ; i < result.length; ++i)
-			{
-				var p = result[i];
-				if (self.existing_purchases.indexOf(p['productId']) === -1)
-					self.existing_purchases.push(p['productId']);
-			}
-			if (self.onrestorepurchasessuccess)
-				self.onrestorepurchasessuccess(tag);
-		},
-		function (error)
-		{
-			if (self.onrestorepurchasesfail)
-				self.onrestorepurchasesfail(tag);
-		});
-	};
-	AndroidStore.prototype.requestStoreListing = function ()
-	{
-		var self = this;
-		window['iap']["requestStoreListing"](self.product_id_list, function (result)
-		{
-/*
-[
-    {
-        "productId": "sword001",
-        "title": "Sword of Truths",
-        "price": "Formatted price of the item, including its currency sign.",
-        "description": "Very pointy sword. Sword knows if you are lying, so don't lie."
-    },
-    {
-        "productId": "shield001",
-        "title": "Shield of Peanuts",
-        "price": "Formatted price of the item, including its currency sign.",
-        "description": "A shield made entirely of peanuts."
-    }
-]
-*/
-			for (var i = 0 ; i < result.length; ++i)
-			{
-				var p = result[i];
-				self.product_info[p["productId"]] = { title: p["title"], price: p["price"] };
-			}
-			if (self.onstorelistingsuccess)
-				self.onstorelistingsuccess();
-		}, function (error)
-		{
-			if (self.onstorelistingfail)
-				self.onstorelistingfail();
-		});
-	};
-	AndroidStore.prototype.getAppName = function ()
-	{
-		return this.getProductName("app");
-	};
-	AndroidStore.prototype.getAppFormattedPrice = function ()
-	{
-		return this.getProductFormattedPrice("app");
-	};
-	AndroidStore.prototype.getProductName = function (product_)
-	{
-		if (this.product_info.hasOwnProperty(product_))
-			return this.product_info[product_].title;
-		else
-			return "";
-	};
-	AndroidStore.prototype.getProductFormattedPrice = function (product_)
-	{
-		if (this.product_info.hasOwnProperty(product_))
-			return this.product_info[product_].price.toString();
-		else
-			return "";
-	};
-	function WP8Store()
-	{
-		this.onpurchasesuccess = null;
-		this.onpurchasefail = null;
-		this.onconsumesuccess = null;
-		this.onconsumefail = null;
-		this.onstorelistingsuccess = null;
-		this.onstorelistingfail = null;
-		this.onrestorepurchasessuccess = null;
-		this.onrestorepurchasesfail = null;
-		this.product_id_list = [];
-		this.existing_purchases = [];
-		this.product_info = {};		// map product id to info
-		InAppPurchaseManager["init"](function (result)
-		{
-		}, function (error)
-		{
-		} , {showLog:true});
-	};
-	WP8Store.prototype.isAvailable = function ()
-	{
-		return true;
-	};
-	WP8Store.prototype.supportsConsumables = function ()
-	{
-		return false;
-	};
-	WP8Store.prototype.addProductIds = function (idstring)
-	{
-/*
-		if (idstring.indexOf(",") === -1)
-			this.product_id_list.push(idstring);
-		else
-			this.product_id_list.push.apply(this.product_id_list, idstring.split(","));
-*/
-		if (idstring.indexOf(",") === -1) {
-			if (this.product_id_list.indexOf(idstring) == -1)
-				this.product_id_list.push(idstring);
-		}
-		else {
-			var arr = idstring.split(",");
-			for (var i = 0 ; i < arr.length ; i++) {
-				if (this.product_id_list.indexOf(arr[i]) == -1)
-					this.product_id_list.push(arr[i]);
-			}
-		}
-	};
-	WP8Store.prototype.isTrial = function ()
-	{
-		return !this.isLicensed();
-	};
-	WP8Store.prototype.isLicensed = function ()
-	{
-		return this.hasProduct("app");
-	};
-	WP8Store.prototype.hasProduct = function (product_)
-	{
-		return this.existing_purchases.indexOf(product_) !== -1;
-	};
-	WP8Store.prototype.purchaseApp = function ()
-	{
-		this.purchaseProduct("app");
-	};
-	WP8Store.prototype.purchaseProduct = function (product_)
-	{
-		if (!this.isAvailable())
-			return;
-		var self = this;
-		InAppPurchaseManager["buy"](function (result)
-		{
-			if (self.existing_purchases.indexOf(product_) === -1)
-				self.existing_purchases.push(product_);
-			if (self.onpurchasesuccess)
-				self.onpurchasesuccess(product_);
-		}, function (error)
-		{
-			if (self.onpurchasefail)
-				self.onpurchasefail(product_, error);
-		} , product_);
-	};
-	WP8Store.prototype.consumeProduct = function (product_)
-	{
-	}
-	WP8Store.prototype.restorePurchases = function (tag)
-	{
-		if (!this.isAvailable())
-			return;
-		InAppPurchaseManager["getPurchases"](function (result)
-		{
-			var i, len, p;
-			for (i = 0, len = result.length; i < len; ++i)
-			{
-				p = result[i]["productId"];
-				if (self.existing_purchases.indexOf(p) === -1)
-					self.existing_purchases.push(p);
-			}
-			if (self.onrestorepurchasessuccess)
-				self.onrestorepurchasessuccess(tag);
-		}, function (error)
-		{
-			if (self.onrestorepurchasesfail)
-				self.onrestorepurchasesfail(tag);
-		});
-	};
-	WP8Store.prototype.requestStoreListing = function ()
-	{
-		var self = this;
-		InAppPurchaseManager["getProductDetails"](function (result)
-		{
-			var i, len, p;
-			for (i = 0, len = result.length; i < len; ++i)
-			{
-				p = result[i];
-				self.product_info[p["productId"]] = { title: p["title"], price: p["price"] };
-			}
-			if (self.onstorelistingsuccess)
-				self.onstorelistingsuccess();
-		}, function (error)
-		{
-			if (self.onstorelistingfail)
-				self.onstorelistingfail();
-		}, this.product_id_list);
-	};
-	WP8Store.prototype.getAppName = function ()
-	{
-		return this.getProductName("app");
-	};
-	WP8Store.prototype.getAppFormattedPrice = function ()
-	{
-		return this.getProductFormattedPrice("app");
-	};
-	WP8Store.prototype.getProductName = function (product_)
-	{
-		if (this.product_info.hasOwnProperty(product_))
-			return this.product_info[product_].title;
-		else
-			return "";
-	};
-	WP8Store.prototype.getProductFormattedPrice = function (product_)
-	{
-		if (this.product_info.hasOwnProperty(product_))
-			return this.product_info[product_].price.toString();
-		else
-			return "";
-	};
-	var pluginProto = cr.plugins_.cranberrygame_CordovaIAP.prototype;
-	pluginProto.Type = function(plugin)
-	{
-		this.plugin = plugin;
-		this.runtime = plugin.runtime;
-	};
-	var typeProto = pluginProto.Type.prototype;
-/*
-	var fbAppID = "";
-	var fbAppSecret = "";
-*/
-	var curTag = "";
-	typeProto.onCreate = function()
-	{
-/*
-		var newScriptTag=document.createElement('script');
-		newScriptTag.setAttribute("type","text/javascript");
-		newScriptTag.setAttribute("src", "mylib.js");
-		document.getElementsByTagName("head")[0].appendChild(newScriptTag);
-		var scripts=document.getElementsByTagName("script");
-		var scriptExist=false;
-		for(var i=0;i<scripts.length;i++){
-			if(scripts[i].src.indexOf("cordova.js")!=-1||scripts[i].src.indexOf("phonegap.js")!=-1){
-				scriptExist=true;
-				break;
-			}
-		}
-		if(!scriptExist){
-			var newScriptTag=document.createElement("script");
-			newScriptTag.setAttribute("type","text/javascript");
-			newScriptTag.setAttribute("src", "cordova.js");
-			document.getElementsByTagName("head")[0].appendChild(newScriptTag);
-		}
-*/
-		if(this.runtime.isBlackberry10 || this.runtime.isWindows8App || this.runtime.isWindowsPhone8 || this.runtime.isWindowsPhone81){
-			var scripts=document.getElementsByTagName("script");
-			var scriptExist=false;
-			for(var i=0;i<scripts.length;i++){
-				if(scripts[i].src.indexOf("cordova.js")!=-1||scripts[i].src.indexOf("phonegap.js")!=-1){
-					scriptExist=true;
-					break;
-				}
-			}
-			if(!scriptExist){
-				var newScriptTag=document.createElement("script");
-				newScriptTag.setAttribute("type","text/javascript");
-				newScriptTag.setAttribute("src", "cordova.js");
-				document.getElementsByTagName("head")[0].appendChild(newScriptTag);
-			}
-		}
-	};
-	pluginProto.Instance = function(type)
-	{
-		this.type = type;
-		this.runtime = type.runtime;
-	};
-	var instanceProto = pluginProto.Instance.prototype;
-	instanceProto.onCreate = function()
-	{
-/*
-		var self=this;
-		window.addEventListener("resize", function () {//cranberrygame
-			self.runtime.trigger(cr.plugins_.cranberrygame_CordovaIAP.prototype.cnds.TriggerCondition, self);
-		});
-*/
-		if (!(this.runtime.isAndroid || this.runtime.isiOS || this.runtime.isWindowsPhone8 || this.runtime.isWindowsPhone81))
-			return;
-		if (typeof window['iap'] == 'undefined')
-            return;
-		this.androidApplicationLicenseKey = this.properties[0];
-		if (this.runtime.isAndroid && this.androidApplicationLicenseKey == '')
-			return;
-		this.store = null;
-		this.productId = "";
-		this.errorMessage = "";
-		if (this.runtime.isAndroid || this.runtime.isiOS)
-		{
-			this.store = new AndroidStore(this.androidApplicationLicenseKey);
-		}
-		else if (this.runtime.isiOS)
-		{
-			this.store = new AndroidStore(this.androidApplicationLicenseKey);
-		}
-		else if (this.runtime.isWindowsPhone8 || this.runtime.isWindowsPhone81)
-		{
-			this.store = new AndroidStore(this.androidApplicationLicenseKey);
-		}
-		var self = this;
-		if (this.store)
-		{
-			this.store.onpurchasesuccess = function (product_)
-			{
-				self.productId = product_;
-				self.errorMessage = "";
-				self.runtime.trigger(cr.plugins_.cranberrygame_CordovaIAP.prototype.cnds.OnPurchaseProductSucceeded, self);
-				self.runtime.trigger(cr.plugins_.cranberrygame_CordovaIAP.prototype.cnds.OnAnyPurchaseProductSucceeded, self);
-			};
-			this.store.onpurchasefail = function (product_, error_)
-			{
-				self.productId = product_;
-				self.errorMessage = error_;
-				self.runtime.trigger(cr.plugins_.cranberrygame_CordovaIAP.prototype.cnds.OnPurchaseProductFailed, self);
-				self.runtime.trigger(cr.plugins_.cranberrygame_CordovaIAP.prototype.cnds.OnAnyPurchaseProductFailed, self);
-			};
-			this.store.onconsumesuccess = function (product_)
-			{
-				self.productId = product_;
-				self.errorMessage = "";
-				self.runtime.trigger(cr.plugins_.cranberrygame_CordovaIAP.prototype.cnds.OnConsumeProductSucceeded, self);
-			};
-			this.store.onconsumefail = function (product_, error_)
-			{
-				self.productId = product_;
-				self.errorMessage = error_;
-				self.runtime.trigger(cr.plugins_.cranberrygame_CordovaIAP.prototype.cnds.OnConsumeProductFailed, self);
-			};
-			this.store.onstorelistingsuccess = function ()
-			{
-				self.runtime.trigger(cr.plugins_.cranberrygame_CordovaIAP.prototype.cnds.OnRequestStoreListingSucceeded, self);
-			};
-			this.store.onstorelistingfail = function ()
-			{
-				self.runtime.trigger(cr.plugins_.cranberrygame_CordovaIAP.prototype.cnds.OnRequestStoreListingFailed, self);
-			};
-			this.store.onrestorepurchasessuccess = function (tag)
-			{
-				curTag = tag;
-				self.runtime.trigger(cr.plugins_.cranberrygame_CordovaIAP.prototype.cnds.OnRestorePurchasesSucceeded, self);
-			};
-			this.store.onrestorepurchasesfail = function (tag)
-			{
-				curTag = tag;
-				self.runtime.trigger(cr.plugins_.cranberrygame_CordovaIAP.prototype.cnds.OnRestorePurchasesFailed, self);
-			};
-		}
-	};
-	instanceProto.draw = function(ctx)
-	{
-	};
-	instanceProto.drawGL = function (glw)
-	{
-	};
-/*
-	instanceProto.at = function (x)
-	{
-		return this.arr[x];
-	};
-	instanceProto.set = function (x, val)
-	{
-		this.arr[x] = val;
-	};
-*/
-	function Cnds() {};
-/*
-	Cnds.prototype.MyCondition = function (myparam)
-	{
-		return myparam >= 0;
-	};
-	Cnds.prototype.TriggerCondition = function ()
-	{
-		return true;
-	};
-*/
-	Cnds.prototype.OnPurchaseProductSucceeded = function (product_)
-	{
-		return product_ === this.productId;
-	};
-	Cnds.prototype.OnAnyPurchaseProductSucceeded = function ()
-	{
-		return true;
-	};
-	Cnds.prototype.OnPurchaseProductFailed = function (product_)
-	{
-		return product_ === this.productId;
-	};
-	Cnds.prototype.OnAnyPurchaseProductFailed = function ()
-	{
-		return true;
-	};
-	Cnds.prototype.OnConsumeProductSucceeded = function (product_)
-	{
-		return product_ === this.productId;
-	};
-	Cnds.prototype.OnConsumeProductFailed = function (product_)
-	{
-		return product_ === this.productId;
-	};
-	Cnds.prototype.OnRequestStoreListingSucceeded = function ()
-	{
-		return true;
-	};
-	Cnds.prototype.OnRequestStoreListingFailed = function ()
-	{
-		return true;
-	};
-	Cnds.prototype.HasProduct = function (product_)
-	{
-		return this.store && this.store.hasProduct(product_);
-	};
-	Cnds.prototype.IsAvailable = function ()
-	{
-		return this.store && this.store.isAvailable();
-	};
-	Cnds.prototype.IsAppPurchased = function ()
-	{
-		return this.store && this.store.isLicensed();
-	};
-	Cnds.prototype.OnRestorePurchasesSucceeded = function (tag)
-	{
-		return cr.equals_nocase(tag, curTag);
-	};
-	Cnds.prototype.OnRestorePurchasesFailed = function (tag)
-	{
-		return cr.equals_nocase(tag, curTag);
-	};
-	pluginProto.cnds = new Cnds();
-	function Acts() {};
-/*
-	Acts.prototype.MyAction = function (myparam)
-	{
-		alert(myparam);
-	};
-	Acts.prototype.TriggerAction = function ()
-	{
-		var self=this;
-		self.runtime.trigger(cr.plugins_.cranberrygame_CordovaIAP.prototype.cnds.TriggerCondition, self);
-	};
-*/
-	Acts.prototype.AddProductID = function (product_)
-	{
-		if (!(this.runtime.isAndroid || this.runtime.isiOS || this.runtime.isWindowsPhone8 || this.runtime.isWindowsPhone81))
-			return;
-		if (typeof window['iap'] == 'undefined')
-            return;
-		if (this.runtime.isAndroid && this.androidApplicationLicenseKey == '')
-			return;
-		if (!this.store)
-			return;
-		this.store.addProductIds(product_);
-	};
-	Acts.prototype.PurchaseProduct = function (product_)
-	{
-		if (!(this.runtime.isAndroid || this.runtime.isiOS || this.runtime.isWindowsPhone8 || this.runtime.isWindowsPhone81))
-			return;
-		if (typeof window['iap'] == 'undefined')
-            return;
-		if (this.runtime.isAndroid && this.androidApplicationLicenseKey == '')
-			return;
-		if (!this.store)
-			return;
-		this.store.purchaseProduct(product_);
-	};
-	Acts.prototype.ConsumeProduct = function (product_) //cranberrygame
-	{
-		if (!(this.runtime.isAndroid || this.runtime.isiOS || this.runtime.isWindowsPhone8 || this.runtime.isWindowsPhone81))
-			return;
-		if (typeof window['iap'] == 'undefined')
-            return;
-		if (this.runtime.isAndroid && this.androidApplicationLicenseKey == '')
-			return;
-		if (!this.store)
-			return;
-		this.store.consumeProduct(product_);
-	};
-	Acts.prototype.PurchaseApp = function ()
-	{
-		if (!(this.runtime.isAndroid || this.runtime.isiOS || this.runtime.isWindowsPhone8 || this.runtime.isWindowsPhone81))
-			return;
-		if (typeof window['iap'] == 'undefined')
-            return;
-		if (this.runtime.isAndroid && this.androidApplicationLicenseKey == '')
-			return;
-		if (!this.store)
-			return;
-		this.store.purchaseApp();
-	};
-	Acts.prototype.RestorePurchases = function (tag)
-	{
-		if (!(this.runtime.isAndroid || this.runtime.isiOS || this.runtime.isWindowsPhone8 || this.runtime.isWindowsPhone81))
-			return;
-		if (typeof window['iap'] == 'undefined')
-            return;
-		if (this.runtime.isAndroid && this.androidApplicationLicenseKey == '')
-			return;
-		if (!this.store)
-			return;
-		this.store.restorePurchases(tag);
-	};
-	Acts.prototype.RequestStoreListing = function ()
-	{
-		if (!(this.runtime.isAndroid || this.runtime.isiOS || this.runtime.isWindowsPhone8 || this.runtime.isWindowsPhone81))
-			return;
-		if (typeof window['iap'] == 'undefined')
-            return;
-		if (this.runtime.isAndroid && this.androidApplicationLicenseKey == '')
-			return;
-		if (!this.store)
-			return;
-		this.store.requestStoreListing();
-	};
-	pluginProto.acts = new Acts();
-	function Exps() {};
-/*
-	Exps.prototype.MyExpression = function (ret)	// 'ret' must always be the first parameter - always return the expression's result through it!
-	{
-		ret.set_int(1337);				// return our value
-	};
-	Exps.prototype.Text = function (ret, param) //cranberrygame
-	{
-		ret.set_string("Hello");		// for ef_return_string
-	};
-*/
-	Exps.prototype.ProductName = function (ret, product_)
-	{
-		ret.set_string(this.store ? this.store.getProductName(product_) : "");
-	};
-	Exps.prototype.ProductPrice = function (ret, product_)
-	{
-		ret.set_string(this.store ? this.store.getProductFormattedPrice(product_) : "");
-	};
-	Exps.prototype.AppName = function (ret)
-	{
-		ret.set_string(this.store ? this.store.getAppName() : "");
-	};
-	Exps.prototype.AppPrice = function (ret)
-	{
-		ret.set_string(this.store ? this.store.getAppFormattedPrice() : "");
-	};
-	Exps.prototype.ProductID = function (ret)
-	{
-		ret.set_string(this.productId);
-	};
-	Exps.prototype.ErrorMessage = function (ret)
-	{
-		ret.set_string(this.errorMessage);
 	};
 	pluginProto.exps = new Exps();
 }());
@@ -36930,34 +37219,36 @@ cr.behaviors.solid = function(runtime)
 	behaviorProto.acts = new Acts();
 }());
 cr.getObjectRefTable = function () { return [
-	cr.plugins_.Keyboard,
-	cr.plugins_.Ouya_Gamepad,
-	cr.plugins_.OuyaSDK,
-	cr.plugins_.Particles,
-	cr.plugins_.FileSaver,
-	cr.plugins_.Rex_Comment,
-	cr.plugins_.Rex_CSV,
 	cr.plugins_.AJAX,
 	cr.plugins_.Audio,
-	cr.plugins_.Arr,
 	cr.plugins_.Browser,
-	cr.plugins_.cranberrygame_CordovaIAP,
+	cr.plugins_.Arr,
+	cr.plugins_.Function,
+	cr.plugins_.Keyboard,
+	cr.plugins_.FileSaver,
+	cr.plugins_.Ouya_Gamepad,
+	cr.plugins_.Particles,
+	cr.plugins_.OuyaSDK,
+	cr.plugins_.Rex_CSV,
+	cr.plugins_.Rex_Comment,
 	cr.plugins_.Rex_Function,
+	cr.plugins_.Rex_JSONBuider,
+	cr.plugins_.Rex_jsshell,
 	cr.plugins_.Rex_Hash,
 	cr.plugins_.Rex_Nickname,
 	cr.plugins_.Rex_Pause,
-	cr.plugins_.rex_TouchWrap,
 	cr.plugins_.Rex_SysExt,
+	cr.plugins_.Rex_taffydb,
 	cr.plugins_.Rex_TimeLine,
-	cr.plugins_.Spritefont2,
+	cr.plugins_.rex_TouchWrap,
 	cr.plugins_.Rex_WorkSheet,
 	cr.plugins_.Rex_WebstorageExt,
 	cr.plugins_.Sprite,
 	cr.plugins_.Rex_WaitEvent,
+	cr.plugins_.Spritefont2,
 	cr.plugins_.Text,
 	cr.plugins_.TiledBg,
 	cr.plugins_.WebStorage,
-	cr.plugins_.cranberrygame_CordovaGame,
 	cr.behaviors.solid,
 	cr.behaviors.Flash,
 	cr.behaviors.Platform,
@@ -36990,18 +37281,19 @@ cr.getObjectRefTable = function () { return [
 	cr.system_object.prototype.exps.round,
 	cr.plugins_.Sprite.prototype.exps.X,
 	cr.system_object.prototype.exps.viewportright,
-	cr.plugins_.cranberrygame_CordovaGame.prototype.acts.Login,
 	cr.plugins_.Spritefont2.prototype.acts.SetText,
 	cr.plugins_.WebStorage.prototype.exps.LocalValue,
 	cr.system_object.prototype.exps["int"],
 	cr.plugins_.Rex_Function.prototype.acts.CallFunction,
+	cr.system_object.prototype.cnds.IsOnPlatform,
+	cr.plugins_.Function.prototype.acts.CallFunction,
+	cr.system_object.prototype.cnds.Else,
 	cr.system_object.prototype.cnds.CompareVar,
 	cr.plugins_.Audio.prototype.acts.SetSilent,
 	cr.behaviors.Rex_ToggleSwitch.prototype.acts.SetValue,
 	cr.system_object.prototype.cnds.Compare,
 	cr.plugins_.Sprite.prototype.acts.SetVisible,
 	cr.plugins_.WebStorage.prototype.cnds.CompareKeyNumber,
-	cr.system_object.prototype.cnds.IsOnPlatform,
 	cr.plugins_.Sprite.prototype.cnds.IsOnLayer,
 	cr.system_object.prototype.cnds.EveryTick,
 	cr.plugins_.TiledBg.prototype.acts.SetWidth,
@@ -37061,7 +37353,6 @@ cr.getObjectRefTable = function () { return [
 	cr.plugins_.Sprite.prototype.exps.AnimationFrame,
 	cr.behaviors.lunarray_Tween.prototype.acts.SetTargetX,
 	cr.behaviors.lunarray_Tween.prototype.acts.Force,
-	cr.system_object.prototype.cnds.Else,
 	cr.behaviors.Rex_Button2.prototype.acts.GotoACTIVE,
 	cr.plugins_.Sprite.prototype.cnds.CompareFrame,
 	cr.behaviors.Fade.prototype.acts.StartFade,
@@ -37083,8 +37374,6 @@ cr.getObjectRefTable = function () { return [
 	cr.plugins_.Browser.prototype.acts.GoToURL,
 	cr.plugins_.OuyaSDK.prototype.acts.requestGamerInfo,
 	cr.behaviors.Rex_Button2.prototype.acts.GotoINACTIVE,
-	cr.plugins_.cranberrygame_CordovaGame.prototype.acts.ShowAchievements,
-	cr.plugins_.cranberrygame_CordovaGame.prototype.acts.ShowLeaderboards,
 	cr.behaviors.Rex_ToggleSwitch.prototype.acts.ToogleValue,
 	cr.behaviors.Rex_ToggleSwitch.prototype.cnds.OnTurnOn,
 	cr.plugins_.Audio.prototype.acts.SetMuted,
@@ -37134,9 +37423,8 @@ cr.getObjectRefTable = function () { return [
 	cr.behaviors.Platform.prototype.acts.SetGravityAngle,
 	cr.system_object.prototype.exps.random,
 	cr.plugins_.Spritefont2.prototype.acts.SetInstanceVar,
-	cr.plugins_.cranberrygame_CordovaGame.prototype.acts.UnlockAchievement,
-	cr.plugins_.cranberrygame_CordovaIAP.prototype.cnds.OnPurchaseProductSucceeded,
-	cr.plugins_.cranberrygame_CordovaIAP.prototype.cnds.OnPurchaseProductFailed,
+	cr.plugins_.Function.prototype.cnds.OnFunction,
+	cr.plugins_.Function.prototype.exps.Param,
 	cr.behaviors.Rex_Button2.prototype.acts.ManualTriggerCondition,
 	cr.plugins_.Sprite.prototype.cnds.IsBoolInstanceVarSet,
 	cr.behaviors.Rex_Button2.prototype.exps.CurState,
@@ -37160,14 +37448,12 @@ cr.getObjectRefTable = function () { return [
 	cr.plugins_.Spritefont2.prototype.exps.X,
 	cr.plugins_.Spritefont2.prototype.exps.Y,
 	cr.plugins_.Rex_Nickname.prototype.acts.CreateInst,
-	cr.plugins_.cranberrygame_CordovaIAP.prototype.acts.AddProductID,
-	cr.plugins_.cranberrygame_CordovaIAP.prototype.acts.RequestStoreListing,
 	cr.plugins_.Text.prototype.acts.SetPosToObject,
-	cr.plugins_.cranberrygame_CordovaIAP.prototype.cnds.OnRequestStoreListingSucceeded,
-	cr.plugins_.cranberrygame_CordovaIAP.prototype.cnds.OnRequestStoreListingFailed,
-	cr.plugins_.cranberrygame_CordovaIAP.prototype.acts.PurchaseProduct,
 	cr.plugins_.Text.prototype.acts.SetText,
-	cr.plugins_.cranberrygame_CordovaIAP.prototype.exps.ProductPrice,
+	cr.plugins_.Rex_taffydb.prototype.acts.NewFilters,
+	cr.plugins_.Rex_taffydb.prototype.acts.AddValueComparsion,
+	cr.plugins_.Rex_taffydb.prototype.cnds.ForEachRow,
+	cr.plugins_.Rex_taffydb.prototype.exps.CurRowContent,
 	cr.plugins_.Rex_WorkSheet.prototype.acts.SetInstanceVar,
 	cr.behaviors.Bullet.prototype.acts.SetEnabled,
 	cr.behaviors.Rex_Value_interpolation.prototype.acts.Setup2,
@@ -37175,9 +37461,27 @@ cr.getObjectRefTable = function () { return [
 	cr.behaviors.Rex_Value_interpolation.prototype.exps.Value,
 	cr.behaviors.Rex_Value_interpolation.prototype.acts.SetDuration,
 	cr.behaviors.Rex_Value_interpolation.prototype.acts.ChangeValue,
-	cr.plugins_.cranberrygame_CordovaGame.prototype.acts.SubmitScore,
 	cr.plugins_.Rex_WorkSheet.prototype.cnds.OnCompleted,
 	cr.plugins_.Spritefont2.prototype.acts.AppendText,
 	cr.behaviors.lunarray_Tween.prototype.cnds.CompareProgress,
-	cr.plugins_.Sprite.prototype.exps.Opacity
+	cr.plugins_.Sprite.prototype.exps.Opacity,
+	cr.plugins_.Rex_jsshell.prototype.acts.SetFunctionName,
+	cr.plugins_.Rex_jsshell.prototype.acts.AddValue,
+	cr.plugins_.Rex_jsshell.prototype.acts.InvokeFunction,
+	cr.plugins_.Rex_taffydb.prototype.acts.SetValue,
+	cr.plugins_.Rex_taffydb.prototype.acts.Save,
+	cr.plugins_.Rex_jsshell.prototype.acts.AddCallback,
+	cr.plugins_.Rex_jsshell.prototype.cnds.OnCallback,
+	cr.plugins_.Rex_Hash.prototype.acts.StringToHashTable,
+	cr.plugins_.Rex_jsshell.prototype.exps.Param,
+	cr.system_object.prototype.exps.replace,
+	cr.plugins_.Rex_Hash.prototype.exps.AsJSON,
+	cr.plugins_.Rex_JSONBuider.prototype.acts.Clean,
+	cr.plugins_.Rex_JSONBuider.prototype.cnds.SetRoot,
+	cr.plugins_.Rex_JSONBuider.prototype.acts.AddValue,
+	cr.plugins_.Rex_jsshell.prototype.acts.AddJSON,
+	cr.plugins_.Rex_JSONBuider.prototype.exps.AsJSON,
+	cr.plugins_.Rex_Comment.prototype.acts.NOOP,
+	cr.plugins_.Rex_Hash.prototype.cnds.ForEachItem,
+	cr.plugins_.Rex_Hash.prototype.exps.CurValue
 ];};
