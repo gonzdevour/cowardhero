@@ -107,6 +107,7 @@
         <variable name="ANDROID_PLAY_SERVICES_GAMES_VERSION" value="16.0.0" />
         <variable name="ANDROID_PLAY_SERVICES_PLUS_VERSION" value="16.0.0" />
 		<variable name="APP_ID" value="399858431474" />
+	</plugin>
 	<plugin name="cordova-plugin-purchase" source="npm">
 		<variable name="BILLING_KEY" value="MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAigYWCxY9v15TETEObMpZkMlZFsqPNBf/47GjtJu2EcxkqcMmaSqz81G4yHq5aymgHA82lf9XvZ6RLbowegmLHM7pqvVsUdNdlet5jM2YLVEPnDO2dxDmbvRziDuEJ8O06sFw02//fd0F/VlaxOWnxmcSb55jSXo99QxmFsD5X0hR3FvyMAe/anaeZVD6QxPFCuPbOJsRe+U3RsP/Ve7UM5sOJLVyVdc1z5UdO+MSkwYKLkVophoWZO1HRWMO0VGitlEfV0xsP7l3edE6U4hFJqXVVhEfE55gg5ZVTsXcXo/XZTRg54uplRWrqgWm8yQ0VDXua8OguHoFHC/28CkBcwIDAQAB" />
 	</plugin>
