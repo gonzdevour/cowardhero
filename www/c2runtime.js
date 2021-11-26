@@ -20148,6 +20148,253 @@ cr.plugins_.Browser = function(runtime)
 	};
 	pluginProto.exps = new Exps();
 }());
+/*! @source http://purl.eligrey.com/github/BlobBuilder.js/blob/master/BlobBuilder.js */
+/* BlobBuilder.js
+ * A BlobBuilder implementation.
+ * 2012-04-21
+ *
+ * By Eli Grey, http://eligrey.com
+ * License: X11/MIT
+ *   See LICENSE.md
+ */
+/*global self, unescape */
+/*jslint bitwise: true, regexp: true, confusion: true, es5: true, vars: true, white: true,
+  plusplus: true */
+/*! @source http://purl.eligrey.com/github/BlobBuilder.js/blob/master/BlobBuilder.js */
+var BlobBuilder = BlobBuilder || self.WebKitBlobBuilder || self.MozBlobBuilder || self.MSBlobBuilder || (function(view) {
+var
+	  get_class = function(object) {
+		return Object.prototype.toString.call(object).match(/^\[object\s(.*)\]$/)[1];
+	}
+	, FakeBlobBuilder = function(){
+		this.data = [];
+	}
+	, FakeBlob = function(data, type, encoding) {
+		this.data = data;
+		this.size = data.length;
+		this.type = type;
+		this.encoding = encoding;
+	}
+	, FBB_proto = FakeBlobBuilder.prototype
+	, FB_proto = FakeBlob.prototype
+	, FileReaderSync = view.FileReaderSync
+	, FileException = function(type) {
+		this.code = this[this.name = type];
+	}
+	, file_ex_codes = (
+		  "NOT_FOUND_ERR SECURITY_ERR ABORT_ERR NOT_READABLE_ERR ENCODING_ERR "
+		+ "NO_MODIFICATION_ALLOWED_ERR INVALID_STATE_ERR SYNTAX_ERR"
+	).split(" ")
+	, file_ex_code = file_ex_codes.length
+	, realURL = view.URL || view.webkitURL || view
+	, real_create_object_URL = realURL.createObjectURL
+	, real_revoke_object_URL = realURL.revokeObjectURL
+	, URL = realURL
+	, btoa = view.btoa
+	, atob = view.atob
+	, can_apply_typed_arrays = false
+	, can_apply_typed_arrays_test = function(pass) {
+		can_apply_typed_arrays = !pass;
+	}
+	, ArrayBuffer = view.ArrayBuffer
+	, Uint8Array = view.Uint8Array
+;
+FakeBlobBuilder.fake = FB_proto.fake = true;
+while (file_ex_code--) {
+	FileException.prototype[file_ex_codes[file_ex_code]] = file_ex_code + 1;
+}
+try {
+	if (Uint8Array) {
+		can_apply_typed_arrays_test.apply(0, new Uint8Array(1));
+	}
+} catch (ex) {}
+if (!realURL.createObjectURL) {
+	URL = view.URL = {};
+}
+URL.createObjectURL = function(blob) {
+	var
+		  type = blob.type
+		, data_URI_header
+	;
+	if (type === null) {
+		type = "application/octet-stream";
+	}
+	if (blob instanceof FakeBlob) {
+		data_URI_header = "data:" + type;
+		if (blob.encoding === "base64") {
+			return data_URI_header + ";base64," + blob.data;
+		} else if (blob.encoding === "URI") {
+			return data_URI_header + "," + decodeURIComponent(blob.data);
+		} if (btoa) {
+			return data_URI_header + ";base64," + btoa(blob.data);
+		} else {
+			return data_URI_header + "," + encodeURIComponent(blob.data);
+		}
+	} else if (real_create_object_url) {
+		return real_create_object_url.call(realURL, blob);
+	}
+};
+URL.revokeObjectURL = function(object_url) {
+	if (object_url.substring(0, 5) !== "data:" && real_revoke_object_url) {
+		real_revoke_object_url.call(realURL, object_url);
+	}
+};
+FBB_proto.append = function(data/*, endings*/) {
+	var bb = this.data;
+	if (Uint8Array && data instanceof ArrayBuffer) {
+		if (can_apply_typed_arrays) {
+			bb.push(String.fromCharCode.apply(String, new Uint8Array(data)));
+		} else {
+			var
+				  str = ""
+				, buf = new Uint8Array(data)
+				, i = 0
+				, buf_len = buf.length
+			;
+			for (; i < buf_len; i++) {
+				str += String.fromCharCode(buf[i]);
+			}
+		}
+	} else if (get_class(data) === "Blob" || get_class(data) === "File") {
+		if (FileReaderSync) {
+			var fr = new FileReaderSync;
+			bb.push(fr.readAsBinaryString(data));
+		} else {
+			throw new FileException("NOT_READABLE_ERR");
+		}
+	} else if (data instanceof FakeBlob) {
+		if (data.encoding === "base64" && atob) {
+			bb.push(atob(data.data));
+		} else if (data.encoding === "URI") {
+			bb.push(decodeURIComponent(data.data));
+		} else if (data.encoding === "raw") {
+			bb.push(data.data);
+		}
+	} else {
+		if (typeof data !== "string") {
+			data += ""; // convert unsupported types to strings
+		}
+		bb.push(unescape(encodeURIComponent(data)));
+	}
+};
+FBB_proto.getBlob = function(type) {
+	if (!arguments.length) {
+		type = null;
+	}
+	return new FakeBlob(this.data.join(""), type, "raw");
+};
+FBB_proto.toString = function() {
+	return "[object BlobBuilder]";
+};
+FB_proto.slice = function(start, end, type) {
+	var args = arguments.length;
+	if (args < 3) {
+		type = null;
+	}
+	return new FakeBlob(
+		  this.data.slice(start, args > 1 ? end : this.data.length)
+		, type
+		, this.encoding
+	);
+};
+FB_proto.toString = function() {
+	return "[object Blob]";
+};
+return FakeBlobBuilder;
+}(self));
+;
+;
+cr.plugins_.FileSaver = function(runtime)
+{
+	this.runtime = runtime;
+};
+(function ()
+{
+	var pluginProto = cr.plugins_.FileSaver.prototype;
+	pluginProto.Type = function(plugin)
+	{
+		this.plugin = plugin;
+		this.runtime = plugin.runtime;
+	};
+	var typeProto = pluginProto.Type.prototype;
+	typeProto.onCreate = function()
+	{
+	};
+	pluginProto.Instance = function(type)
+	{
+		this.type = type;
+		this.runtime = type.runtime;
+	};
+	var instanceProto = pluginProto.Instance.prototype;
+	instanceProto.onCreate = function()
+	{
+		this.bb = new BlobBuilder;
+	};
+	instanceProto.draw = function(ctx)
+	{
+	};
+	instanceProto.drawGL = function (glw)
+	{
+	};
+	pluginProto.cnds = {};
+	var cnds = pluginProto.cnds;
+	cnds.MyCondition = function (myparam)
+	{
+		return myparam >= 0;
+	};
+	pluginProto.acts = {};
+	var acts = pluginProto.acts;
+	/*acts.MyAction = function (myparam)
+	{
+		alert(myparam);
+	};*/
+	acts.appendText = function (content)
+	{
+		this.bb.append(content);
+	};
+	acts.saveText = function (filename)
+	{
+		saveAs(this.bb.getBlob("text/plain;charset=utf-8"), filename);
+	};
+	acts.clearFile = function(){
+		this.bb = '';
+		this.bb = new BlobBuilder;
+	};
+	acts.appendHTML = function(content)
+	{
+		this.bb.append(content);
+	};
+	acts.saveHTML = function (filename)
+	{
+		var blob = this.bb.getBlob("application/xhtml+xml;charset=" + document.characterSet);
+		saveAs(blob, filename);
+	};
+	acts.saveImage = function(filename,content)
+	{
+		var ui8a = acts.convertDataURIToBinary(content);
+		this.bb.append(ui8a.buffer);
+		var blob = this.bb.getBlob("image/png");
+		saveAs(blob,filename);
+	};
+	acts.convertDataURIToBinary = function (dataURI) {
+		var BASE64_MARKER = ';base64,';
+		var base64Index = dataURI.indexOf(BASE64_MARKER) + BASE64_MARKER.length;
+		var base64 = dataURI.substring(base64Index);
+		var raw = window.atob(base64);
+		var rawLength = raw.length;
+		var array = new Uint8Array(new ArrayBuffer(rawLength));
+		for(i = 0; i < rawLength; i++) {
+			array[i] = raw.charCodeAt(i);
+		}
+		return array;
+	}
+	pluginProto.exps = {};
+	var exps = pluginProto.exps;
+	/*exps.MyExpression = function (ret)	// 'ret' must always be the first parameter - always return the expression's result through it!
+	{
+		ret.set_int(1337);				// return our value
+	};*/
+}());
 ;
 ;
 cr.plugins_.Function = function(runtime)
@@ -35612,32 +35859,33 @@ cr.behaviors.solid = function(runtime)
 }());
 cr.getObjectRefTable = function () { return [
 	cr.plugins_.AJAX,
-	cr.plugins_.Audio,
 	cr.plugins_.Arr,
+	cr.plugins_.Audio,
 	cr.plugins_.Browser,
 	cr.plugins_.Keyboard,
 	cr.plugins_.Function,
 	cr.plugins_.Particles,
+	cr.plugins_.FileSaver,
 	cr.plugins_.Rex_Comment,
 	cr.plugins_.Rex_CSV,
 	cr.plugins_.Rex_Function,
+	cr.plugins_.Rex_jsshell,
 	cr.plugins_.Rex_Hash,
 	cr.plugins_.Rex_JSONBuider,
-	cr.plugins_.Rex_jsshell,
 	cr.plugins_.Rex_Nickname,
-	cr.plugins_.Rex_Pause,
-	cr.plugins_.Rex_WaitEvent,
-	cr.plugins_.Rex_TimeLine,
-	cr.plugins_.Rex_SysExt,
 	cr.plugins_.Rex_taffydb,
+	cr.plugins_.Rex_SysExt,
+	cr.plugins_.Rex_Pause,
+	cr.plugins_.Rex_TimeLine,
 	cr.plugins_.rex_TouchWrap,
-	cr.plugins_.Rex_WebstorageExt,
-	cr.plugins_.Rex_WorkSheet,
-	cr.plugins_.Sprite,
 	cr.plugins_.Spritefont2,
 	cr.plugins_.Text,
-	cr.plugins_.WebStorage,
 	cr.plugins_.TiledBg,
+	cr.plugins_.Rex_WorkSheet,
+	cr.plugins_.Sprite,
+	cr.plugins_.Rex_WebstorageExt,
+	cr.plugins_.Rex_WaitEvent,
+	cr.plugins_.WebStorage,
 	cr.behaviors.solid,
 	cr.behaviors.Flash,
 	cr.behaviors.Platform,
@@ -35649,11 +35897,11 @@ cr.getObjectRefTable = function () { return [
 	cr.behaviors.Fade,
 	cr.behaviors.rex_Anchor_mod,
 	cr.behaviors.scrollto,
+	cr.behaviors.Rex_Button2,
 	cr.behaviors.Rex_ToggleSwitch,
 	cr.behaviors.Rex_Rotate,
 	cr.behaviors.Sin,
 	cr.behaviors.Rex_bNickname,
-	cr.behaviors.Rex_Button2,
 	cr.system_object.prototype.cnds.IsGroupActive,
 	cr.system_object.prototype.cnds.OnLayoutStart,
 	cr.plugins_.Sprite.prototype.acts.SetInstanceVar,
@@ -35701,8 +35949,8 @@ cr.getObjectRefTable = function () { return [
 	cr.plugins_.AJAX.prototype.exps.LastData,
 	cr.plugins_.Rex_WaitEvent.prototype.cnds.OnAllEventsFinished,
 	cr.system_object.prototype.acts.GoToLayout,
-	cr.plugins_.Rex_Function.prototype.acts.SetParameter,
 	cr.plugins_.Keyboard.prototype.cnds.OnAnyKey,
+	cr.plugins_.Rex_Function.prototype.acts.SetParameter,
 	cr.plugins_.rex_TouchWrap.prototype.cnds.OnTouchStart,
 	cr.system_object.prototype.cnds.LayerVisible,
 	cr.plugins_.rex_TouchWrap.prototype.cnds.OnTouchEnd,
@@ -35758,7 +36006,6 @@ cr.getObjectRefTable = function () { return [
 	cr.plugins_.Audio.prototype.acts.Stop,
 	cr.system_object.prototype.exps.floor,
 	cr.system_object.prototype.acts.GoToLayoutByName,
-	cr.plugins_.Browser.prototype.acts.GoToURL,
 	cr.behaviors.Rex_Button2.prototype.acts.GotoINACTIVE,
 	cr.behaviors.Rex_ToggleSwitch.prototype.acts.ToogleValue,
 	cr.behaviors.Rex_ToggleSwitch.prototype.cnds.OnTurnOn,
@@ -35850,15 +36097,17 @@ cr.getObjectRefTable = function () { return [
 	cr.plugins_.Spritefont2.prototype.acts.AppendText,
 	cr.behaviors.lunarray_Tween.prototype.cnds.CompareProgress,
 	cr.plugins_.Sprite.prototype.exps.Opacity,
+	cr.plugins_.Browser.prototype.acts.GoToURLWindow,
 	cr.plugins_.Rex_jsshell.prototype.acts.SetFunctionName,
 	cr.plugins_.Rex_jsshell.prototype.acts.AddValue,
 	cr.plugins_.Rex_jsshell.prototype.acts.InvokeFunction,
-	cr.plugins_.Rex_taffydb.prototype.acts.SetValue,
-	cr.plugins_.Rex_taffydb.prototype.acts.Save,
+	cr.plugins_.Rex_Comment.prototype.acts.NOOP,
 	cr.plugins_.Rex_jsshell.prototype.acts.AddCallback,
 	cr.plugins_.Rex_jsshell.prototype.cnds.OnCallback,
-	cr.plugins_.Rex_Hash.prototype.acts.StringToHashTable,
 	cr.plugins_.Rex_jsshell.prototype.exps.Param,
+	cr.plugins_.Rex_taffydb.prototype.acts.SetValue,
+	cr.plugins_.Rex_taffydb.prototype.acts.Save,
+	cr.plugins_.Rex_Hash.prototype.acts.StringToHashTable,
 	cr.system_object.prototype.exps.replace,
 	cr.plugins_.Rex_Hash.prototype.exps.AsJSON,
 	cr.plugins_.Rex_JSONBuider.prototype.acts.Clean,
@@ -35866,7 +36115,6 @@ cr.getObjectRefTable = function () { return [
 	cr.plugins_.Rex_JSONBuider.prototype.acts.AddValue,
 	cr.plugins_.Rex_jsshell.prototype.acts.AddJSON,
 	cr.plugins_.Rex_JSONBuider.prototype.exps.AsJSON,
-	cr.plugins_.Rex_Comment.prototype.acts.NOOP,
 	cr.plugins_.Rex_Hash.prototype.cnds.ForEachItem,
 	cr.plugins_.Rex_Hash.prototype.exps.CurValue
 ];};
