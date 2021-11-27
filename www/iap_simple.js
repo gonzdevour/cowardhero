@@ -29,11 +29,8 @@ function initiap() {
   store.when("product").finished(function (p) {
     c2_callFunction("iap_finished", [p.id]);
   });
-  store.when("order").rejected(function (order) {
-    c2_callFunction("iap_orderRejected", [order]);
-  });
-  store.when("order").cancelled(function (order) {
-    c2_callFunction("iap_orderCancelled", [order]);
+  store.when("product").cancelled(function (p) {
+    c2_callFunction("iap_orderCancelled", [p.id]);
   });
   store.error(function (e) {
     c2_callFunction("log", ["product error"]);
